@@ -1,0 +1,4 @@
+interface:
+  display_name: "Khu Pho Antigravity Orchestrator"
+  short_description: "Plan, delegate, review, and verify Khu Pho code"
+  default_prompt: "Use $khu-pho-antigravity-orchestrator to implement this feature with Antigravity Flash 3.7 and independently verify the result."
