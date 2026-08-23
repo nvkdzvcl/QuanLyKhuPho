@@ -22,6 +22,8 @@ import {
 } from '../../hooks/use-pending-residents';
 import { getErrorMessage } from '../../lib/api-client';
 
+import { AnnouncementFeed } from '../announcements/announcement-feed';
+
 interface OfficerViewProps {
   user: UserDto;
 }
@@ -97,7 +99,7 @@ export function OfficerView({ user }: OfficerViewProps) {
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Banner */}
       <div className="rounded-3xl bg-gradient-to-r from-blue-700 to-indigo-900 p-6 text-white shadow-lg sm:p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -131,6 +133,9 @@ export function OfficerView({ user }: OfficerViewProps) {
           onClose={() => setToastFeedback(null)}
         />
       )}
+
+      {/* Ward Announcements Management Feed */}
+      <AnnouncementFeed user={user} />
 
       {/* Ward Oversight & Pending Queue */}
       <Card>

@@ -24,6 +24,28 @@ enum AccountStatus {
   @@map("account_status_enum")
 }
 
+enum AnnouncementScope {
+  ward
+  neighborhood
+
+  @@map("announcement_scope_enum")
+}
+
+enum AnnouncementStatus {
+  published
+  removed
+
+  @@map("announcement_status_enum")
+}
+
+enum NotificationType {
+  announcement
+  comment
+  system
+
+  @@map("notification_type_enum")
+}
+
 model Neighborhood {
   id          String    @id @default(uuid()) @db.Uuid
   code        String    @unique @db.VarChar(50)
@@ -35,7 +57,8 @@ model Neighborhood {
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  accounts Account[]
+  accounts      Account[]
+  announcements Announcement[]
 
   @@unique([ward, name])
   @@map("neighborhoods")
@@ -55,10 +78,108 @@ model Account {
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  neighborhood Neighborhood? @relation(fields: [neighborhoodId], references: [id], onDelete: Restrict)
+  neighborhood      Neighborhood?      @relation(fields: [neighborhoodId], references: [id], onDelete: Restrict)
+  announcements     Announcement[]
+  comments          Comment[]          @relation("CommentAuthor")
+  moderatedComments Comment[]          @relation("CommentModerator")
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
 
   @@index([role, status])
   @@index([neighborhoodId, status])
   @@index([neighborhoodId, role])
   @@map("accounts")
+}
+
+model Announcement {
+  id             String             @id @default(uuid()) @db.Uuid
+  title          String             @db.VarChar(255)
+  content        String             @db.Text
+  scope          AnnouncementScope  @default(neighborhood)
+  status         AnnouncementStatus @default(published)
+  neighborhoodId String?            @map("neighborhood_id") @db.Uuid
+  authorId       String             @map("author_id") @db.Uuid
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  neighborhood Neighborhood? @relation(fields: [neighborhoodId], references: [id], onDelete: Restrict)
+  author       Account       @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  attachments  Attachment[]
+  comments     Comment[]
+
+  @@index([status, createdAt])
+  @@index([neighborhoodId, status, createdAt])
+  @@index([scope, status, createdAt])
+  @@index([authorId])
+  @@map("announcements")
+}
+
+model Attachment {
+  id             String       @id @default(uuid()) @db.Uuid
+  announcementId String       @map("announcement_id") @db.Uuid
+  fileName       String       @map("file_name") @db.VarChar(255)
+  originalName   String       @map("original_name") @db.VarChar(255)
+  mimeType       String       @map("mime_type") @db.VarChar(100)
+  fileSize       Int          @map("file_size")
+  filePath       String       @map("file_path") @db.VarChar(500)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@index([announcementId])
+  @@map("attachments")
+}
+
+model Comment {
+  id             String    @id @default(uuid()) @db.Uuid
+  announcementId String    @map("announcement_id") @db.Uuid
+  authorId       String    @map("author_id") @db.Uuid
+  content        String    @db.VarChar(1000)
+  isRemoved      Boolean   @default(false) @map("is_removed")
+  removedReason  String?   @map("removed_reason") @db.Text
+  removedBy      String?   @map("removed_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  author       Account      @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  moderator    Account?     @relation("CommentModerator", fields: [removedBy], references: [id], onDelete: Restrict)
+
+  @@index([announcementId, createdAt])
+  @@index([authorId])
+  @@map("comments")
+}
+
+model Notification {
+  id          String           @id @default(uuid()) @db.Uuid
+  accountId   String           @map("account_id") @db.Uuid
+  title       String           @db.VarChar(255)
+  content     String           @db.Text
+  type        NotificationType @default(announcement)
+  referenceId String?          @map("reference_id") @db.VarChar(255)
+  isRead      Boolean          @default(false) @map("is_read")
+  readAt      DateTime?        @map("read_at") @db.Timestamptz(6)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, isRead, createdAt])
+  @@index([accountId, createdAt])
+  @@map("notifications")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid()) @db.Uuid
+  accountId String   @map("account_id") @db.Uuid
+  endpoint  String   @unique @db.Text
+  p256dh    String   @db.Text
+  auth      String   @db.Text
+  userAgent String?  @map("user_agent") @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@map("push_subscriptions")
 }

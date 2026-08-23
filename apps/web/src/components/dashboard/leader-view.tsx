@@ -22,6 +22,8 @@ import {
 } from '../../hooks/use-pending-residents';
 import { getErrorMessage } from '../../lib/api-client';
 
+import { AnnouncementFeed } from '../announcements/announcement-feed';
+
 interface LeaderViewProps {
   user: UserDto;
 }
@@ -119,7 +121,7 @@ export function LeaderView({ user }: LeaderViewProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header Banner */}
       <div className="rounded-3xl bg-gradient-to-r from-amber-600 to-orange-600 p-6 text-white shadow-lg sm:p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -155,6 +157,9 @@ export function LeaderView({ user }: LeaderViewProps) {
           onClose={() => setToastFeedback(null)}
         />
       )}
+
+      {/* Announcements Feed Section for Leader */}
+      <AnnouncementFeed user={user} />
 
       {/* Pending Accounts Card */}
       <Card>

@@ -150,9 +150,9 @@ pnpm dev
 
 ---
 
-## 📡 Danh sách API Endpoints (Sprint 1A)
+## 📡 Danh sách API Endpoints
 
-### Xác thực & Phiên làm việc (Authentication)
+### Xác thực & Phiên làm việc (Authentication - Sprint 1A)
 
 | Method | Endpoint | Quyền hạn | Mô tả |
 | :--- | :--- | :--- | :--- |
@@ -162,7 +162,7 @@ pnpm dev
 | `GET` | `/api/auth/me` | Authenticated | Lấy thông tin tài khoản người dùng hiện tại |
 | `POST` | `/api/auth/logout` | Authenticated | Thu hồi phiên làm việc và xóa cookie |
 
-### Quản trị Người dùng & Phê duyệt (User Moderation & Leader Assignment)
+### Quản trị Người dùng & Phê duyệt (User Moderation & Leader Assignment - Sprint 1A)
 
 | Method | Endpoint | Quyền hạn | Mô tả |
 | :--- | :--- | :--- | :--- |
@@ -172,6 +172,36 @@ pnpm dev
 | `PATCH` | `/api/users/:id/lock` | Leader / Officer | Khóa tài khoản cư dân (yêu cầu lý do `reason`, thu hồi phiên) |
 | `PATCH` | `/api/users/:id/unlock` | Leader / Officer | Mở khóa tài khoản cư dân |
 | `POST` | `/api/users/leaders` | Officer | Cán bộ phường tạo tài khoản Trưởng khu phố |
+
+### Bảng tin, Thông báo & Tệp đính kèm (Announcements & Attachments - Sprint 2A)
+
+| Method | Endpoint | Quyền hạn | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/announcements` | Authenticated | Bảng tin thông báo theo phân quyền và bộ lọc phạm vi |
+| `GET` | `/api/announcements/:id` | Authenticated | Chi tiết thông báo, tệp đính kèm và bình luận |
+| `POST` | `/api/announcements` | Leader / Officer | Đăng thông báo mới (kèm tối đa 5 tệp, <= 10 MiB/tệp) |
+| `PATCH` | `/api/announcements/:id` | Creator / Officer | Chỉnh sửa tiêu đề hoặc nội dung thông báo |
+| `DELETE` | `/api/announcements/:id` | Creator / Officer | Gỡ bỏ thông báo (soft-remove, giữ lịch sử và bình luận) |
+| `GET` | `/api/announcements/:id/attachments/:attachmentId` | Authenticated | Tải tệp đính kèm an toàn sau khi xác thực quyền xem |
+
+### Bình luận & Kiểm duyệt (Comments & Moderation - Sprint 2A)
+
+| Method | Endpoint | Quyền hạn | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/announcements/:id/comments` | Authenticated | Đăng bình luận trên thông báo công khai (tối đa 1000 ký tự) |
+| `PATCH` | `/api/announcements/:id/comments/:commentId/moderate` | Leader / Officer | Kiểm duyệt hoặc mở lại bình luận (Leader theo khu phố, Officer toàn phường) |
+
+### Thông báo Trong Ứng Dụng & Web Push (Notifications & Push - Sprint 2A)
+
+| Method | Endpoint | Quyền hạn | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/notifications` | Authenticated | Danh sách thông báo trong ứng dụng của người dùng |
+| `GET` | `/api/notifications/unread-count` | Authenticated | Số lượng thông báo chưa đọc |
+| `PATCH` | `/api/notifications/:id/read` | Authenticated | Đánh dấu thông báo cụ thể là đã đọc |
+| `POST` | `/api/notifications/mark-all-read` | Authenticated | Đánh dấu tất cả thông báo là đã đọc |
+| `GET` | `/api/notifications/push/vapid-public-key` | Authenticated | Lấy VAPID public key cho Web Push |
+| `POST` | `/api/notifications/push/subscribe` | Authenticated | Đăng ký subscription thông báo đẩy trình duyệt |
+| `POST` | `/api/notifications/push/unsubscribe` | Authenticated | Hủy đăng ký subscription thông báo đẩy |
 
 ### Địa bàn & Khu phố (Neighborhoods)
 
@@ -222,3 +252,5 @@ docker compose -f docker/docker-compose.yml config --quiet
 - **Bảo mật Thông tin**: Tuyệt đối không commit tệp `.env` thực tế hoặc lộ bí mật mã hóa. Không in số điện thoại hoặc mã OTP ở dạng rõ trong log.
 - **Tiêu chuẩn Ngôn ngữ**: Giao diện và thông báo người dùng sử dụng tiếng Việt chuẩn.
 - **Phân quyền Phía Server**: Đảm bảo phân quyền 3 cấp (`resident`, `leader`, `officer`) và cô lập khu phố (Leader chỉ quản lý khu phố được phân công) luôn được thực thi nghiêm ngặt tại Backend.
+- **Dữ liệu Đính kèm & Tải về**: Kiểm tra định dạng bằng magic bytes thực tế, lưu trữ bằng tên ngẫu nhiên ngoài web root, ngăn chặn path traversal, dọn dẹp file khi DB lỗi và kiểm tra quyền trước khi cho phép tải xuống.
+- **Thông báo Bền vững**: Thông báo trong ứng dụng luôn được tạo đồng bộ trong transaction; Web Push hoạt động theo cơ chế best-effort và tự động dọn dẹp subscription hết hạn mà không làm gián đoạn luồng chính.

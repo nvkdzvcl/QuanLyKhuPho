@@ -4,13 +4,14 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge } from '@quanlykhupho/ui';
 import { UserDto } from '@quanlykhupho/shared-types';
 
+import { AnnouncementFeed } from '../announcements/announcement-feed';
+
 interface ResidentViewProps {
   user: UserDto;
 }
-
 export function ResidentView({ user }: ResidentViewProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Welcome Banner */}
       <div className="rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white shadow-lg sm:p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -32,6 +33,9 @@ export function ResidentView({ user }: ResidentViewProps) {
           </Badge>
         </div>
       </div>
+
+      {/* Announcements Feed Section */}
+      <AnnouncementFeed user={user} />
 
       {/* Resident Profile & Household Info Card */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -74,11 +78,11 @@ export function ResidentView({ user }: ResidentViewProps) {
             <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 transition hover:bg-slate-100/80">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 font-bold">
-                  🔔
+                  📢
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-slate-900">Bảng tin & Thông báo</h4>
-                  <p className="text-xs text-slate-500">Nhận thông báo họp tổ dân phố và tin tức an ninh.</p>
+                  <p className="text-xs text-slate-500">Đã cập nhật bảng tin và tải tệp đính kèm trực tiếp.</p>
                 </div>
               </div>
             </div>
@@ -86,11 +90,11 @@ export function ResidentView({ user }: ResidentViewProps) {
             <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 transition hover:bg-slate-100/80">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-700 font-bold">
-                  📝
+                  💬
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900">Phản ánh & Kiến nghị</h4>
-                  <p className="text-xs text-slate-500">Gửi kiến nghị về môi trường, trật tự tới Trưởng khu phố.</p>
+                  <h4 className="text-sm font-bold text-slate-900">Đóng góp ý kiến & Bình luận</h4>
+                  <p className="text-xs text-slate-500">Tham gia trao đổi văn minh trên các thông báo khu phố.</p>
                 </div>
               </div>
             </div>

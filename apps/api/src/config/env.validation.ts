@@ -76,6 +76,22 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   BOOTSTRAP_OFFICER_FULL_NAME?: string;
+
+  @IsString()
+  @IsOptional()
+  UPLOAD_DIR?: string;
+
+  @IsString()
+  @IsOptional()
+  VAPID_PUBLIC_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  VAPID_PRIVATE_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  VAPID_SUBJECT?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {
@@ -88,6 +104,29 @@ export function validateEnvironment(config: Record<string, unknown>): Environmen
 
   if (errors.length > 0) {
     throw new Error(`Environment validation failed:\n${errors.toString()}`);
+  }
+
+  // Validate coherent VAPID configuration if any VAPID key is provided
+  const hasAnyVapid = Boolean(
+    validatedConfig.VAPID_PUBLIC_KEY ||
+      validatedConfig.VAPID_PRIVATE_KEY ||
+      validatedConfig.VAPID_SUBJECT,
+  );
+  if (hasAnyVapid) {
+    const missingVapid: string[] = [];
+    if (!validatedConfig.VAPID_PUBLIC_KEY) missingVapid.push('VAPID_PUBLIC_KEY');
+    if (!validatedConfig.VAPID_PRIVATE_KEY) missingVapid.push('VAPID_PRIVATE_KEY');
+    if (!validatedConfig.VAPID_SUBJECT) missingVapid.push('VAPID_SUBJECT');
+    if (missingVapid.length > 0) {
+      throw new Error(`Incomplete VAPID configuration: missing ${missingVapid.join(', ')}`);
+    }
+    if (
+      validatedConfig.VAPID_SUBJECT &&
+      !validatedConfig.VAPID_SUBJECT.startsWith('mailto:') &&
+      !validatedConfig.VAPID_SUBJECT.startsWith('https://')
+    ) {
+      throw new Error('VAPID_SUBJECT must start with "mailto:" or "https://"');
+    }
   }
 
   if (validatedConfig.NODE_ENV === Environment.Production) {

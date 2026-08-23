@@ -4,3 +4,6 @@ export * from './enums';
 export * from './user';
 export * from './auth';
 export * from './admin';
+export * from './announcements';
+export * from './comments';
+export * from './notifications';

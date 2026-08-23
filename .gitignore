@@ -38,3 +38,7 @@ Thumbs.db
 
 # Local AI orchestration artifacts
 .ai-work/
+
+# File uploads
+uploads/
+**/uploads/
