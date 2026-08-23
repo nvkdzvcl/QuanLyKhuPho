@@ -24,6 +24,7 @@ import { getErrorMessage } from '../../lib/api-client';
 
 import { AnnouncementFeed } from '../announcements/announcement-feed';
 import { PetitionList } from '../petitions/petition-list';
+import { WardOverviewStats } from './ward-overview-stats';
 
 interface OfficerViewProps {
   user: UserDto;
@@ -134,6 +135,9 @@ export function OfficerView({ user }: OfficerViewProps) {
           onClose={() => setToastFeedback(null)}
         />
       )}
+
+      {/* Officer-only ward overview, neighborhood drill-down and analytics */}
+      <WardOverviewStats />
 
       {/* Ward Announcements Management Feed */}
       <AnnouncementFeed user={user} />

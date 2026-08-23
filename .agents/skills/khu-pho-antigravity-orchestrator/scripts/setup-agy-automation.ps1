@@ -19,6 +19,7 @@ $requiredRules = @(
     "command(git status)",
     "command(git status -s)",
     "command(git status --short)",
+    "command(git log -n 3 --oneline)",
     "command(git diff)",
     "command(git diff .*)",
     "command(git diff .agents/skills/khu-pho-antigravity-orchestrator/scripts/setup-agy-automation.ps1)",

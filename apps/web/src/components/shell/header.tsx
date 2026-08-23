@@ -41,19 +41,22 @@ export function Header({ user, onOpenLoginModal }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-3.5 sm:px-6 lg:px-8">
         {/* Brand Logo & Title */}
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 font-bold text-white shadow-md">
             KP
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
                 Quản Lý Khu Phố
               </h1>
               {user && (
-                <Badge variant={getRoleBadgeVariant(user.role)}>
+                <Badge
+                  variant={getRoleBadgeVariant(user.role)}
+                  className="hidden sm:inline-flex"
+                >
                   {getRoleLabel(user.role)}
                 </Badge>
               )}
@@ -83,7 +86,7 @@ export function Header({ user, onOpenLoginModal }: HeaderProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => logout()}
-                className="text-xs font-semibold"
+                className="px-2 text-xs font-semibold sm:px-3"
               >
                 Đăng xuất
               </Button>
