@@ -76,6 +76,9 @@ skill is active.
 - Antigravity may edit and test but may not commit, push, release, deploy, add
   unrelated dependencies, or broaden the requested scope.
 - Never pass `--dangerously-skip-permissions` to `agy`.
+- Keep CLI file access repository-scoped. Do not grant the CLI access to the
+  Windows user profile to recover from a relative-path or discovery fallback;
+  the bundled runner enforces absolute paths under `D:/QuanLyKhuPho`.
 - Do not claim success from Antigravity's report. Codex owns final acceptance.
 - If the exact model, authentication, quota, or runner is unavailable, identify
   that layer and stop; do not silently fall back to another model.

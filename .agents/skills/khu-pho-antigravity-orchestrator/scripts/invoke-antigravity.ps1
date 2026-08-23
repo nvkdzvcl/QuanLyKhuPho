@@ -36,10 +36,25 @@ if (-not $resolvedPromptPath.StartsWith(
 
 $agyCommand = Get-Command agy -ErrorAction Stop
 $prompt = Get-Content -Raw -LiteralPath $resolvedPromptPath
+$repoRootForTools = $repoRoot.Replace("\", "/").TrimEnd("/")
 
 if ([string]::IsNullOrWhiteSpace($prompt)) {
     throw "Prompt file is empty: $resolvedPromptPath"
 }
+
+$prompt += @"
+
+REPOSITORY_TOOL_BOUNDARY
+The only allowed filesystem workspace is $repoRootForTools. For every file
+read, write, directory listing, glob, or search tool call, pass an explicit
+absolute path beginning with $repoRootForTools/. Never pass an empty path, a
+relative path such as ".", a home alias such as "~", a drive root, or any path
+under C:/Users. Start repository discovery by listing $repoRootForTools itself.
+If a broad search times out, retry with a narrower absolute path inside this
+repository; never fall back to a parent or user-profile directory. Do not read
+external requirements or configuration. If a repository-scoped file tool is
+denied, stop and report the denial instead of requesting broader access.
+"@
 
 if (-not $AllowChecks) {
     $prompt += @"
@@ -91,6 +106,7 @@ if (-not $modelFound) {
 }
 
 $agyArguments = @(
+    "--add-dir", $repoRoot,
     "--mode", "accept-edits",
     "--model", $Model,
     "--effort", $Effort,

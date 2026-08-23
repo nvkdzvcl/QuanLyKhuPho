@@ -73,6 +73,13 @@ output, and an eight-minute default timeout. It adds the implementation-only
 constraint, validates the model and required handoff sections, then writes
 `.ai-work/last-handoff.md`.
 
+The runner also adds the repository root explicitly and injects a filesystem
+boundary into every prompt. Antigravity must use absolute paths beneath
+`D:/QuanLyKhuPho` for reads, writes, listings, globs, and searches. It must not
+fall back to `.`, `~`, a drive root, or the Windows user profile when discovery
+times out. Do not solve a misdirected path request by granting access to the
+user profile; correct the path or stop the run.
+
 Use `-AllowChecks` only when Antigravity truly needs to execute the packet's
 verification commands and a fresh CLI permission smoke test has already passed.
 This is opt-in because Antigravity CLI 1.1.x on Windows can still reject commands
