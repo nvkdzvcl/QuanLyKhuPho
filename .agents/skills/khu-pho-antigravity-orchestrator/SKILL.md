@@ -37,6 +37,9 @@ skill is active.
    `CODEX_VERIFICATION_COMMANDS`. For `PHASE`, also define dependency-ordered
    `EXECUTION_SLICES`; keep the phase scope intact but do not ask Flash to
    implement the entire phase in one invocation.
+   When the slice requires new files and their paths are already determined,
+   create their parent directories and minimal valid placeholders with
+   `apply_patch` before delegation. Do not create speculative placeholders.
 5. For `DELEGATE` or `PHASE`, read
    [references/delegation-playbook.md](references/delegation-playbook.md), create
    a repository-specific task packet under `.ai-work/`, and invoke the bundled
@@ -75,13 +78,18 @@ skill is active.
 - Do not run the full suite as a baseline or inside a repair loop. Run it only
   as the final phase gate after focused checks pass.
 - Require a compact structured handoff. Do not request narrative progress logs.
+- Limit the handoff to `FILES_CHANGED`, `CHANGE_SUMMARY`, and `KNOWN_RISKS`:
+  paths only, at most five summary bullets, and at most three risks. Antigravity
+  does not repeat tests or diff narration because Codex verifies both directly.
 - Reuse the original task packet for repairs and add only the concrete finding.
 - Keep `.ai-work/current-phase.md` as the concise restart checkpoint for an
   active phase. Store verified facts, slice status, changed paths, commands and
   unresolved risks; never copy chat history, source files, or raw logs into it.
 - Keep tool output narrow: report command, result, and the first actionable
-  failure; refer to log paths instead of pasting long logs. During silent CLI
-  waits, send only a minimal elapsed-time/status heartbeat.
+  failure. On runner failure, read `.ai-work/agy-error-summary.txt` first. Never
+  read `agy-run.log` in full; use at most its final 80 lines only when the compact
+  summary does not identify the layer. During silent CLI waits, send only a
+  minimal elapsed-time/status heartbeat.
 - Use at most one CLI continuation, and only for a transient interrupted stream.
   Never continue after a permission denial because a resumed conversation can
   retain stale permission state.

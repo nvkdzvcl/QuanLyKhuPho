@@ -69,6 +69,10 @@ Architecture, authorization, security, data, and compatibility rules.
 LIKELY_INTEGRATION_POINTS
 Likely files or modules without prescribing a broad rewrite.
 
+PRECREATED_TARGETS
+New files whose exact paths Codex has already created with minimal valid
+placeholders. Omit this section when the slice changes only existing files.
+
 ACCEPTANCE_CRITERIA
 Observable conditions that must pass.
 
@@ -83,18 +87,27 @@ Implement using repository read/write tools only. Do not run shell commands,
 tests, lint, builds, Git, Docker, or package-manager commands. Inspect the files
 you changed and repair obvious problems. Do not commit, push, deploy, add
 unrelated dependencies, or continue into later work. Codex will verify.
+Every path in PRECREATED_TARGETS already exists. Edit it with repository file
+tools; never use RunCommand, a terminal, node -e, PowerShell, cmd, or shell file
+creation. If another new path is genuinely required, report it as a risk instead
+of creating it through a command.
 
 REQUIRED_HANDOFF
-Return exactly these headings with concise content:
+Return exactly these headings with no preamble and at most 350 words total:
 FILES_CHANGED
+Paths only.
 CHANGE_SUMMARY
-TESTS
+At most five bullets.
 KNOWN_RISKS
-DIFF_SUMMARY
+At most three bullets, or `None`.
 ```
 
 Reference requirements and code by path. Include only the snippets needed to
 disambiguate a contract; do not paste entire documents or files.
+
+Before invoking the runner, Codex creates every determined new target in
+`PRECREATED_TARGETS` with `apply_patch`. This is a small placeholder, not a
+partial implementation. Existing directories and files are left untouched.
 
 ## Invoke Antigravity
 
@@ -129,7 +142,7 @@ checks; rerun the complete gate only after those checks pass.
 
 The runner pins `gemini-3.7-flash-high`, `accept-edits`, high effort, JSON outer
 output, and an eight-minute default timeout. It adds the implementation-only
-constraint, validates the model and required handoff sections, then writes
+constraint, validates the three compact handoff sections, then writes
 `.ai-work/last-handoff.md`.
 
 Keep the eight-minute default for `DELEGATE` and `PHASE` runs. Lower it only for
@@ -156,6 +169,11 @@ resume the same conversation once with a compact continuation prompt and
 a permission denial. Stop that run, review the existing diff, and let Codex run
 the verification command.
 
+On any runner failure, inspect `.ai-work/agy-error-summary.txt` first. The runner
+derives it from at most the final 80 log lines and keeps only actionable signals.
+Do not load `.ai-work/agy-run.log` wholesale. If the summary is insufficient,
+inspect no more than the final 80 lines and stop after identifying the layer.
+
 Use the CLI for ordinary delegation. For an exceptional interactive issue that
 cannot be resolved in the CLI, prefer the lightweight Antigravity desktop
 task/chat surface, then the full IDE editor only if necessary. Computer Use is
@@ -172,7 +190,7 @@ For a verified defect, create `.ai-work/repair-N.md` containing only:
 3. expected behavior;
 4. likely affected files;
 5. the exact verification command; and
-6. the same required handoff headings.
+6. the same three compact required handoff headings.
 
 Do not request a broad redo unless the implementation is unusable. Run no more
 than one repair delegation per user request.
