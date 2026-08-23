@@ -25,6 +25,7 @@ import { getErrorMessage } from '../../lib/api-client';
 import { AnnouncementFeed } from '../announcements/announcement-feed';
 import { PetitionList } from '../petitions/petition-list';
 import { WardOverviewStats } from './ward-overview-stats';
+import { PeriodicReportCard } from './periodic-report-card';
 
 interface OfficerViewProps {
   user: UserDto;
@@ -138,6 +139,9 @@ export function OfficerView({ user }: OfficerViewProps) {
 
       {/* Officer-only ward overview, neighborhood drill-down and analytics */}
       <WardOverviewStats />
+
+      {/* Officer-only periodic ward reports (FR-20) */}
+      <PeriodicReportCard />
 
       {/* Ward Announcements Management Feed */}
       <AnnouncementFeed user={user} />

@@ -5,6 +5,9 @@ import {
   ErrorCode,
   NeighborhoodDetailSummaryDto,
   NeighborhoodQuickMetricsDto,
+  PeriodicReportNeighborhoodRowDto,
+  PeriodicReportQueryDto,
+  PeriodicReportResponseDto,
   PetitionCategory,
   PetitionCategoryAnalyticsResponseDto,
   PetitionCategorySeriesItemDto,
@@ -12,6 +15,7 @@ import {
   PetitionStatusSummaryDto,
   RecentAnnouncementItemDto,
   RecentPetitionItemDto,
+  ReportingPeriodType,
   WardOverviewDto,
 } from '@quanlykhupho/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
@@ -609,6 +613,337 @@ export class DashboardService {
       neighborhoodId: neighborhoodId || null,
       startDate: startDateStr || null,
       endDate: endDateStr || null,
+    };
+  }
+
+  /**
+   * FR-20: Generate periodic (monthly/quarterly) ward report aggregates.
+   */
+  async getPeriodicReport(
+    query: PeriodicReportQueryDto,
+  ): Promise<PeriodicReportResponseDto> {
+    const { periodType, year, period } = query;
+
+    // 1. Validate periodType
+    if (
+      periodType !== ReportingPeriodType.MONTH &&
+      periodType !== ReportingPeriodType.QUARTER
+    ) {
+      throw new AppException(
+        'Loại kỳ báo cáo không hợp lệ (phải là month hoặc quarter)',
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.VALIDATION_ERROR,
+      );
+    }
+
+    // 2. Validate year
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new AppException(
+        'Năm báo cáo không hợp lệ',
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.VALIDATION_ERROR,
+      );
+    }
+
+    // 3. Validate period range based on periodType
+    const isMonth = periodType === ReportingPeriodType.MONTH;
+    const isQuarter = periodType === ReportingPeriodType.QUARTER;
+
+    if (isMonth && (!Number.isInteger(period) || period < 1 || period > 12)) {
+      throw new AppException(
+        'Kỳ tháng không hợp lệ (phải từ 1 đến 12)',
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.VALIDATION_ERROR,
+      );
+    }
+
+    if (isQuarter && (!Number.isInteger(period) || period < 1 || period > 4)) {
+      throw new AppException(
+        'Kỳ quý không hợp lệ (phải từ 1 đến 4)',
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.VALIDATION_ERROR,
+      );
+    }
+
+    // 4. Reject future periods
+    const now = new Date();
+    const currentUtcYear = now.getUTCFullYear();
+    const currentUtcMonth = now.getUTCMonth() + 1; // 1..12
+    const currentUtcQuarter = Math.floor(now.getUTCMonth() / 3) + 1; // 1..4
+
+    if (
+      year > currentUtcYear ||
+      (year === currentUtcYear &&
+        ((isMonth && period > currentUtcMonth) ||
+          (isQuarter && period > currentUtcQuarter)))
+    ) {
+      throw new AppException(
+        'Không thể lập báo cáo cho kỳ trong tương lai',
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.VALIDATION_ERROR,
+      );
+    }
+
+    // 5. Calculate UTC date boundaries and label
+    let startDate: Date;
+    let endDateExclusive: Date;
+    let label: string;
+
+    if (isMonth) {
+      startDate = new Date(Date.UTC(year, period - 1, 1, 0, 0, 0, 0));
+      endDateExclusive = new Date(Date.UTC(year, period, 1, 0, 0, 0, 0));
+      label = `Tháng ${period}/${year}`;
+    } else {
+      startDate = new Date(Date.UTC(year, (period - 1) * 3, 1, 0, 0, 0, 0));
+      endDateExclusive = new Date(Date.UTC(year, period * 3, 1, 0, 0, 0, 0));
+      label = `Quý ${period}/${year}`;
+    }
+
+    const isPeriodInProgress = now.getTime() < endDateExclusive.getTime();
+
+    // 6. Fetch all neighborhoods in stable code order
+    const neighborhoods = await this.prisma.neighborhood.findMany({
+      orderBy: { code: 'asc' },
+    });
+
+    // 7. Active resident snapshot (current active accounts)
+    const wardActiveResidentsCount = await this.prisma.account.count({
+      where: {
+        role: 'resident',
+        status: 'active',
+      },
+    });
+
+    const activeResidentsByNeighborhood = await this.prisma.account.groupBy({
+      by: ['neighborhoodId'],
+      where: {
+        role: 'resident',
+        status: 'active',
+        neighborhoodId: { not: null },
+      },
+      _count: { id: true },
+    });
+
+    // 8. New resident registrations created in the period
+    const wardNewResidentsCount = await this.prisma.account.count({
+      where: {
+        role: 'resident',
+        createdAt: {
+          gte: startDate,
+          lt: endDateExclusive,
+        },
+      },
+    });
+
+    const newResidentsByNeighborhood = await this.prisma.account.groupBy({
+      by: ['neighborhoodId'],
+      where: {
+        role: 'resident',
+        neighborhoodId: { not: null },
+        createdAt: {
+          gte: startDate,
+          lt: endDateExclusive,
+        },
+      },
+      _count: { id: true },
+    });
+
+    // 9. Published announcements created in the period
+    const wardPublishedAnnouncementsCount =
+      await this.prisma.announcement.count({
+        where: {
+          status: 'published',
+          createdAt: {
+            gte: startDate,
+            lt: endDateExclusive,
+          },
+        },
+      });
+
+    const announcementsByNeighborhood = await this.prisma.announcement.groupBy({
+      by: ['neighborhoodId'],
+      where: {
+        status: 'published',
+        neighborhoodId: { not: null },
+        createdAt: {
+          gte: startDate,
+          lt: endDateExclusive,
+        },
+      },
+      _count: { id: true },
+    });
+
+    // 10. Petitions created in the period split across status
+    const wardPetitionStatusGroups = await this.prisma.petition.groupBy({
+      by: ['status'],
+      where: {
+        createdAt: {
+          gte: startDate,
+          lt: endDateExclusive,
+        },
+      },
+      _count: { id: true },
+    });
+
+    const petitionsByNeighborhood = await this.prisma.petition.groupBy({
+      by: ['neighborhoodId', 'status'],
+      where: {
+        createdAt: {
+          gte: startDate,
+          lt: endDateExclusive,
+        },
+      },
+      _count: { id: true },
+    });
+
+    // 11. Build ward summary petitions
+    const wardPetitionsSummary: PetitionStatusSummaryDto = {
+      reviewing: 0,
+      processing: 0,
+      resolved: 0,
+      rejected: 0,
+      cancelled: 0,
+      total: 0,
+    };
+
+    for (const group of wardPetitionStatusGroups) {
+      const statusKey = group.status as keyof Omit<
+        PetitionStatusSummaryDto,
+        'total'
+      >;
+      if (statusKey in wardPetitionsSummary) {
+        const count =
+          typeof group._count === 'object' && group._count?.id
+            ? group._count.id
+            : 0;
+        wardPetitionsSummary[statusKey] = count;
+      }
+    }
+    wardPetitionsSummary.total =
+      wardPetitionsSummary.reviewing +
+      wardPetitionsSummary.processing +
+      wardPetitionsSummary.resolved +
+      wardPetitionsSummary.rejected +
+      wardPetitionsSummary.cancelled;
+
+    // 12. Build per-neighborhood rows
+    const neighborhoodRows: PeriodicReportNeighborhoodRowDto[] =
+      neighborhoods.map((n) => {
+        const activeResidentsGroup = activeResidentsByNeighborhood.find(
+          (r) => r.neighborhoodId === n.id,
+        );
+        const activeResidents =
+          typeof activeResidentsGroup?._count === 'object' &&
+          activeResidentsGroup?._count?.id
+            ? activeResidentsGroup._count.id
+            : 0;
+
+        const newResidentsGroup = newResidentsByNeighborhood.find(
+          (r) => r.neighborhoodId === n.id,
+        );
+        const newResidents =
+          typeof newResidentsGroup?._count === 'object' &&
+          newResidentsGroup?._count?.id
+            ? newResidentsGroup._count.id
+            : 0;
+
+        const announcementsGroup = announcementsByNeighborhood.find(
+          (a) => a.neighborhoodId === n.id,
+        );
+        const publishedAnnouncements =
+          typeof announcementsGroup?._count === 'object' &&
+          announcementsGroup?._count?.id
+            ? announcementsGroup._count.id
+            : 0;
+
+        const nPetitions = petitionsByNeighborhood.filter(
+          (p) => p.neighborhoodId === n.id,
+        );
+
+        const nPetitionsSummary: PetitionStatusSummaryDto = {
+          reviewing: 0,
+          processing: 0,
+          resolved: 0,
+          rejected: 0,
+          cancelled: 0,
+          total: 0,
+        };
+
+        for (const group of nPetitions) {
+          const statusKey = group.status as keyof Omit<
+            PetitionStatusSummaryDto,
+            'total'
+          >;
+          if (statusKey in nPetitionsSummary) {
+            const count =
+              typeof group._count === 'object' && group._count?.id
+                ? group._count.id
+                : 0;
+            nPetitionsSummary[statusKey] = count;
+          }
+        }
+        nPetitionsSummary.total =
+          nPetitionsSummary.reviewing +
+          nPetitionsSummary.processing +
+          nPetitionsSummary.resolved +
+          nPetitionsSummary.rejected +
+          nPetitionsSummary.cancelled;
+
+        return {
+          id: n.id,
+          code: n.code,
+          name: n.name,
+          ward: n.ward,
+          activeResidentCount: activeResidents,
+          newResidentRegistrationsCount: newResidents,
+          publishedAnnouncementsCount: publishedAnnouncements,
+          petitionsByStatus: nPetitionsSummary,
+        };
+      });
+
+    // 13. Evaluate data warnings
+    const warnings: string[] = [];
+
+    if (neighborhoods.length === 0) {
+      warnings.push('Chưa có khu phố nào được ghi nhận trên địa bàn phường.');
+    }
+
+    if (
+      wardNewResidentsCount === 0 &&
+      wardPublishedAnnouncementsCount === 0 &&
+      wardPetitionsSummary.total === 0
+    ) {
+      warnings.push(
+        'Kỳ báo cáo không ghi nhận phát sinh đăng ký cư dân, thông báo hoặc kiến nghị mới nào.',
+      );
+    }
+
+    if (isPeriodInProgress) {
+      warnings.push(
+        'Kỳ báo cáo đang diễn ra, số liệu tổng hợp có thể tiếp tục thay đổi đến hết kỳ.',
+      );
+    }
+
+    const isDataSufficient = warnings.length === 0;
+
+    return {
+      periodType: isMonth ? ReportingPeriodType.MONTH : ReportingPeriodType.QUARTER,
+      year,
+      period,
+      label,
+      startDate: startDate.toISOString(),
+      endDateExclusive: endDateExclusive.toISOString(),
+      generatedAt: now.toISOString(),
+      isDataSufficient,
+      warnings,
+      summary: {
+        neighborhoodCount: neighborhoods.length,
+        activeResidentCount: wardActiveResidentsCount,
+        newResidentRegistrationsCount: wardNewResidentsCount,
+        publishedAnnouncementsCount: wardPublishedAnnouncementsCount,
+        petitionsByStatus: wardPetitionsSummary,
+      },
+      neighborhoods: neighborhoodRows,
     };
   }
 }

@@ -1,4 +1,4 @@
-import { PetitionCategory, PetitionStatus } from './enums';
+import { PetitionCategory, PetitionStatus, ReportingPeriodType } from './enums';
 import { NeighborhoodDto } from './user';
 
 export interface AccountStatusSummaryDto {
@@ -92,4 +92,47 @@ export interface DashboardPetitionCategoriesQueryDto {
   neighborhoodId?: string;
   startDate?: string;
   endDate?: string;
+}
+
+export interface PeriodicReportMetadataDto {
+  periodType: ReportingPeriodType;
+  year: number;
+  period: number;
+  label: string;
+  startDate: string;
+  endDateExclusive: string;
+  generatedAt: string;
+}
+
+export interface PeriodicReportWardSummaryDto {
+  neighborhoodCount: number;
+  activeResidentCount: number;
+  newResidentRegistrationsCount: number;
+  publishedAnnouncementsCount: number;
+  petitionsByStatus: PetitionStatusSummaryDto;
+}
+
+export interface PeriodicReportNeighborhoodRowDto {
+  id: string;
+  code: string;
+  name: string;
+  ward: string;
+  activeResidentCount: number;
+  newResidentRegistrationsCount: number;
+  publishedAnnouncementsCount: number;
+  petitionsByStatus: PetitionStatusSummaryDto;
+}
+
+export interface PeriodicReportResponseDto
+  extends PeriodicReportMetadataDto {
+  isDataSufficient: boolean;
+  warnings: string[];
+  summary: PeriodicReportWardSummaryDto;
+  neighborhoods: PeriodicReportNeighborhoodRowDto[];
+}
+
+export interface PeriodicReportQueryDto {
+  periodType: ReportingPeriodType;
+  year: number;
+  period: number;
 }

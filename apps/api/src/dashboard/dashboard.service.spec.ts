@@ -3,7 +3,7 @@ import { DashboardService } from './dashboard.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AppException } from '../core/exceptions/app.exception';
 import { HttpStatus } from '@nestjs/common';
-import { ErrorCode, PetitionCategory } from '@quanlykhupho/shared-types';
+import { ErrorCode, PetitionCategory, ReportingPeriodType } from '@quanlykhupho/shared-types';
 
 describe('DashboardService Unit Tests', () => {
   let service: DashboardService;
@@ -40,6 +40,7 @@ describe('DashboardService Unit Tests', () => {
         findUnique: vi.fn(),
       },
       account: {
+        count: vi.fn(),
         groupBy: vi.fn(),
       },
       petition: {
@@ -326,6 +327,212 @@ describe('DashboardService Unit Tests', () => {
           neighborhoodId: '00000000-0000-4000-8000-000000000000',
         }),
       ).rejects.toThrow(AppException);
+    });
+  });
+
+  describe('getPeriodicReport', () => {
+    it('should generate a monthly report with accurate aggregates and stable neighborhood rows', async () => {
+      vi.mocked(prisma.neighborhood.findMany).mockResolvedValue([
+        mockNeighborhood1,
+        mockNeighborhood2,
+      ]);
+
+      // Active residents snapshot: 40 total
+      vi.mocked(prisma.account.count).mockImplementation((async (args: {
+        where?: { createdAt?: unknown };
+      }) => {
+        if (args?.where?.createdAt) {
+          // New resident registrations in period
+          return 8;
+        }
+        // Active resident snapshot
+        return 40;
+      }) as never);
+
+      // Active residents by neighborhood
+      vi.mocked(prisma.account.groupBy).mockImplementation((async (args: {
+        where?: { createdAt?: unknown };
+      }) => {
+        if (args?.where?.createdAt) {
+          // New registrations by neighborhood
+          return [
+            { neighborhoodId: mockNeighborhood1.id, _count: { id: 5 } },
+            { neighborhoodId: mockNeighborhood2.id, _count: { id: 3 } },
+          ] as never;
+        }
+        // Active residents by neighborhood
+        return [
+          { neighborhoodId: mockNeighborhood1.id, _count: { id: 25 } },
+          { neighborhoodId: mockNeighborhood2.id, _count: { id: 15 } },
+        ] as never;
+      }) as never);
+
+      // Announcements
+      vi.mocked(prisma.announcement.count).mockResolvedValue(4);
+      vi.mocked(prisma.announcement.groupBy).mockResolvedValue([
+        { neighborhoodId: mockNeighborhood1.id, _count: { id: 3 } },
+        { neighborhoodId: mockNeighborhood2.id, _count: { id: 1 } },
+      ] as never);
+
+      // Petitions
+      vi.mocked(prisma.petition.groupBy).mockImplementation((async (args: {
+        by: readonly string[];
+      }) => {
+        if (args.by.includes('neighborhoodId')) {
+          return [
+            { neighborhoodId: mockNeighborhood1.id, status: 'resolved', _count: { id: 4 } },
+            { neighborhoodId: mockNeighborhood1.id, status: 'reviewing', _count: { id: 2 } },
+            { neighborhoodId: mockNeighborhood2.id, status: 'processing', _count: { id: 1 } },
+          ] as never;
+        }
+        return [
+          { status: 'resolved', _count: { id: 4 } },
+          { status: 'reviewing', _count: { id: 2 } },
+          { status: 'processing', _count: { id: 1 } },
+        ] as never;
+      }) as never);
+
+      const result = await service.getPeriodicReport({
+        periodType: ReportingPeriodType.MONTH,
+        year: 2026,
+        period: 1, // January 2026 (past period)
+      });
+
+      expect(result.periodType).toBe(ReportingPeriodType.MONTH);
+      expect(result.year).toBe(2026);
+      expect(result.period).toBe(1);
+      expect(result.label).toBe('Tháng 1/2026');
+      expect(result.startDate).toBe('2026-01-01T00:00:00.000Z');
+      expect(result.endDateExclusive).toBe('2026-02-01T00:00:00.000Z');
+      expect(result.isDataSufficient).toBe(true);
+      expect(result.warnings).toEqual([]);
+
+      // Ward summary
+      expect(result.summary.neighborhoodCount).toBe(2);
+      expect(result.summary.activeResidentCount).toBe(40);
+      expect(result.summary.newResidentRegistrationsCount).toBe(8);
+      expect(result.summary.publishedAnnouncementsCount).toBe(4);
+      expect(result.summary.petitionsByStatus).toEqual({
+        reviewing: 2,
+        processing: 1,
+        resolved: 4,
+        rejected: 0,
+        cancelled: 0,
+        total: 7,
+      });
+
+      // Neighborhood rows
+      expect(result.neighborhoods.length).toBe(2);
+      const kp1 = result.neighborhoods[0];
+      expect(kp1?.code).toBe('KP-01');
+      expect(kp1?.activeResidentCount).toBe(25);
+      expect(kp1?.newResidentRegistrationsCount).toBe(5);
+      expect(kp1?.publishedAnnouncementsCount).toBe(3);
+      expect(kp1?.petitionsByStatus).toEqual({
+        reviewing: 2,
+        processing: 0,
+        resolved: 4,
+        rejected: 0,
+        cancelled: 0,
+        total: 6,
+      });
+
+      // Confirm no sensitive fields are present in the output
+      const jsonStr = JSON.stringify(result);
+      expect(jsonStr).not.toContain('phone');
+      expect(jsonStr).not.toContain('password');
+      expect(jsonStr).not.toContain('citizenId');
+    });
+
+    it('should generate a quarterly report with accurate quarterly date range and label', async () => {
+      vi.mocked(prisma.neighborhood.findMany).mockResolvedValue([mockNeighborhood1]);
+      vi.mocked(prisma.account.count).mockResolvedValue(10);
+      vi.mocked(prisma.account.groupBy).mockResolvedValue([]);
+      vi.mocked(prisma.announcement.count).mockResolvedValue(2);
+      vi.mocked(prisma.announcement.groupBy).mockResolvedValue([]);
+      vi.mocked(prisma.petition.groupBy).mockResolvedValue([]);
+
+      const result = await service.getPeriodicReport({
+        periodType: ReportingPeriodType.QUARTER,
+        year: 2026,
+        period: 1, // Q1 2026: 2026-01-01 to 2026-04-01
+      });
+
+      expect(result.periodType).toBe(ReportingPeriodType.QUARTER);
+      expect(result.year).toBe(2026);
+      expect(result.period).toBe(1);
+      expect(result.label).toBe('Quý 1/2026');
+      expect(result.startDate).toBe('2026-01-01T00:00:00.000Z');
+      expect(result.endDateExclusive).toBe('2026-04-01T00:00:00.000Z');
+    });
+
+    it('should reject invalid period values with 400 Bad Request', async () => {
+      // Month out of range (> 12)
+      await expect(
+        service.getPeriodicReport({
+          periodType: ReportingPeriodType.MONTH,
+          year: 2026,
+          period: 13,
+        }),
+      ).rejects.toThrow(AppException);
+
+      // Month < 1
+      await expect(
+        service.getPeriodicReport({
+          periodType: ReportingPeriodType.MONTH,
+          year: 2026,
+          period: 0,
+        }),
+      ).rejects.toThrow(AppException);
+
+      // Quarter > 4
+      await expect(
+        service.getPeriodicReport({
+          periodType: ReportingPeriodType.QUARTER,
+          year: 2026,
+          period: 5,
+        }),
+      ).rejects.toThrow(AppException);
+
+      // Quarter < 1
+      await expect(
+        service.getPeriodicReport({
+          periodType: ReportingPeriodType.QUARTER,
+          year: 2026,
+          period: 0,
+        }),
+      ).rejects.toThrow(AppException);
+    });
+
+    it('should reject future period with 400 Bad Request', async () => {
+      const nextYear = new Date().getUTCFullYear() + 1;
+      await expect(
+        service.getPeriodicReport({
+          periodType: ReportingPeriodType.MONTH,
+          year: nextYear,
+          period: 1,
+        }),
+      ).rejects.toThrow(AppException);
+    });
+
+    it('should emit warnings when ward has no neighborhoods or no activity', async () => {
+      vi.mocked(prisma.neighborhood.findMany).mockResolvedValue([]);
+      vi.mocked(prisma.account.count).mockResolvedValue(0);
+      vi.mocked(prisma.account.groupBy).mockResolvedValue([]);
+      vi.mocked(prisma.announcement.count).mockResolvedValue(0);
+      vi.mocked(prisma.announcement.groupBy).mockResolvedValue([]);
+      vi.mocked(prisma.petition.groupBy).mockResolvedValue([]);
+
+      const result = await service.getPeriodicReport({
+        periodType: ReportingPeriodType.MONTH,
+        year: 2026,
+        period: 1,
+      });
+
+      expect(result.isDataSufficient).toBe(false);
+      expect(result.warnings.length).toBeGreaterThanOrEqual(2);
+      expect(result.warnings.some((w) => w.includes('khu phố'))).toBe(true);
+      expect(result.warnings.some((w) => w.includes('phát sinh'))).toBe(true);
     });
   });
 });

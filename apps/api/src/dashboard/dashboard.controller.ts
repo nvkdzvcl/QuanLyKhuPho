@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import {
   NeighborhoodDetailSummaryDto,
+  PeriodicReportResponseDto,
   PetitionCategoryAnalyticsResponseDto,
   UserRole,
   WardOverviewDto,
@@ -19,6 +20,7 @@ import { RolesGuard } from '../security/guards/roles.guard';
 import { Roles } from '../security/decorators/roles.decorator';
 import { DashboardService } from './dashboard.service';
 import { DashboardPetitionCategoriesQueryDto } from './dto/dashboard-petition-categories-query.dto';
+import { PeriodicReportQueryDto } from './dto/periodic-report-query.dto';
 
 @Controller('dashboard')
 @UseGuards(AuthGuard, RolesGuard)
@@ -55,5 +57,16 @@ export class DashboardController {
     @Query() query: DashboardPetitionCategoriesQueryDto,
   ): Promise<PetitionCategoryAnalyticsResponseDto> {
     return this.dashboardService.getPetitionCategoryAnalytics(query);
+  }
+
+  /**
+   * FR-20: Get periodic (monthly/quarterly) ward report preview and summary.
+   */
+  @Get('periodic-report')
+  @HttpCode(HttpStatus.OK)
+  async getPeriodicReport(
+    @Query() query: PeriodicReportQueryDto,
+  ): Promise<PeriodicReportResponseDto> {
+    return this.dashboardService.getPeriodicReport(query);
   }
 }

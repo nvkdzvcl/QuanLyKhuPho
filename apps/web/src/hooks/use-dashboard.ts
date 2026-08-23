@@ -3,6 +3,8 @@ import {
   ApiResponseEnvelope,
   DashboardPetitionCategoriesQueryDto,
   NeighborhoodDetailSummaryDto,
+  PeriodicReportQueryDto,
+  PeriodicReportResponseDto,
   PetitionCategoryAnalyticsResponseDto,
   WardOverviewDto,
 } from '@quanlykhupho/shared-types';
@@ -70,5 +72,29 @@ export function usePetitionCategoryAnalytics(
       >(endpoint);
       return res.data.data;
     },
+  });
+}
+
+/**
+ * Hook to fetch periodic ward report data (FR-20).
+ */
+export function usePeriodicReport(
+  query: PeriodicReportQueryDto,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: ['dashboard', 'periodic-report', query],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        periodType: query.periodType,
+        year: String(query.year),
+        period: String(query.period),
+      });
+      const res = await apiClient.get<
+        ApiResponseEnvelope<PeriodicReportResponseDto>
+      >(`/dashboard/periodic-report?${params.toString()}`);
+      return res.data.data;
+    },
+    enabled: options?.enabled ?? true,
   });
 }

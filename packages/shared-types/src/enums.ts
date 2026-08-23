@@ -43,6 +43,11 @@ export enum PetitionStatus {
   CANCELLED = 'cancelled',
 }
 
+export enum ReportingPeriodType {
+  MONTH = 'month',
+  QUARTER = 'quarter',
+}
+
 export enum ErrorCode {
   RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
   INVALID_OTP = 'INVALID_OTP',

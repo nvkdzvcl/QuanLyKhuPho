@@ -2,9 +2,12 @@ import { describe, it, expect } from 'vitest';
 import {
   PetitionCategory,
   PetitionStatus,
+  ReportingPeriodType,
   WardOverviewDto,
   NeighborhoodDetailSummaryDto,
   PetitionCategoryAnalyticsResponseDto,
+  PeriodicReportResponseDto,
+  PeriodicReportQueryDto,
 } from '../src';
 
 describe('Shared Dashboard Types & Contracts', () => {
@@ -156,5 +159,66 @@ describe('Shared Dashboard Types & Contracts', () => {
     expect(analytics.series[1]?.category).toBe(PetitionCategory.SANITATION);
     expect(analytics.series[2]?.category).toBe(PetitionCategory.SECURITY);
     expect(analytics.series[3]?.category).toBe(PetitionCategory.OTHER);
+  });
+
+  it('should define valid PeriodicReportResponseDto and PeriodicReportQueryDto structures', () => {
+    const report: PeriodicReportResponseDto = {
+      periodType: ReportingPeriodType.MONTH,
+      year: 2026,
+      period: 8,
+      label: 'Tháng 8/2026',
+      startDate: '2026-08-01T00:00:00.000Z',
+      endDateExclusive: '2026-09-01T00:00:00.000Z',
+      generatedAt: '2026-08-23T10:00:00.000Z',
+      isDataSufficient: true,
+      warnings: [],
+      summary: {
+        neighborhoodCount: 2,
+        activeResidentCount: 150,
+        newResidentRegistrationsCount: 12,
+        publishedAnnouncementsCount: 5,
+        petitionsByStatus: {
+          reviewing: 2,
+          processing: 1,
+          resolved: 6,
+          rejected: 1,
+          cancelled: 0,
+          total: 10,
+        },
+      },
+      neighborhoods: [
+        {
+          id: '99999999-9999-4999-9999-999999999991',
+          code: 'KP-01',
+          name: 'Khu phố 1',
+          ward: 'Phường Bến Nghé',
+          activeResidentCount: 80,
+          newResidentRegistrationsCount: 7,
+          publishedAnnouncementsCount: 3,
+          petitionsByStatus: {
+            reviewing: 1,
+            processing: 1,
+            resolved: 4,
+            rejected: 0,
+            cancelled: 0,
+            total: 6,
+          },
+        },
+      ],
+    };
+
+    const query: PeriodicReportQueryDto = {
+      periodType: ReportingPeriodType.MONTH,
+      year: 2026,
+      period: 8,
+    };
+
+    expect(query.periodType).toBe(ReportingPeriodType.MONTH);
+    expect(report.periodType).toBe(ReportingPeriodType.MONTH);
+    expect(report.summary.neighborhoodCount).toBe(2);
+    expect(report.summary.petitionsByStatus.total).toBe(10);
+    expect(report.neighborhoods[0]?.code).toBe('KP-01');
+    expect(report.isDataSufficient).toBe(true);
+    expect(report.warnings).toEqual([]);
   });
 });

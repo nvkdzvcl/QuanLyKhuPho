@@ -29,8 +29,10 @@ import {
   AccountStatus,
   ErrorCode,
   NeighborhoodDetailSummaryDto,
+  PeriodicReportResponseDto,
   PetitionCategory,
   PetitionCategoryAnalyticsResponseDto,
+  ReportingPeriodType,
   UserRole,
   WardOverviewDto,
 } from '@quanlykhupho/shared-types';
@@ -118,6 +120,49 @@ describe('Officer Dashboard API (e2e)', () => {
           dbAccounts.find(
             (a) => a.id === where.id || a.phoneHash === where.phoneHash,
           ) || null,
+        count: async ({ where }: { where?: Prisma.AccountWhereInput }) => {
+          let list = [...dbAccounts];
+          if (where?.role) {
+            list = list.filter((a) => a.role === where.role);
+          }
+          if (where?.status) {
+            list = list.filter((a) => a.status === where.status);
+          }
+          if (where?.neighborhoodId) {
+            if (
+              typeof where.neighborhoodId === 'object' &&
+              'not' in where.neighborhoodId
+            ) {
+              list = list.filter((a) => a.neighborhoodId !== null);
+            } else if (typeof where.neighborhoodId === 'string') {
+              list = list.filter(
+                (a) => a.neighborhoodId === where.neighborhoodId,
+              );
+            }
+          }
+          if (where?.createdAt) {
+            const dateFilter = where.createdAt;
+            const gte =
+              typeof dateFilter === 'object' &&
+              !(dateFilter instanceof Date) &&
+              dateFilter.gte instanceof Date
+                ? dateFilter.gte
+                : undefined;
+            const lt =
+              typeof dateFilter === 'object' &&
+              !(dateFilter instanceof Date) &&
+              dateFilter.lt instanceof Date
+                ? dateFilter.lt
+                : undefined;
+            if (gte) {
+              list = list.filter((a) => new Date(a.createdAt) >= gte);
+            }
+            if (lt) {
+              list = list.filter((a) => new Date(a.createdAt) < lt);
+            }
+          }
+          return list.length;
+        },
         groupBy: async ({
           by,
           where,
@@ -143,6 +188,27 @@ describe('Officer Dashboard API (e2e)', () => {
           }
           if (where?.status) {
             list = list.filter((a) => a.status === where.status);
+          }
+          if (where?.createdAt) {
+            const dateFilter = where.createdAt;
+            const gte =
+              typeof dateFilter === 'object' &&
+              !(dateFilter instanceof Date) &&
+              dateFilter.gte instanceof Date
+                ? dateFilter.gte
+                : undefined;
+            const lt =
+              typeof dateFilter === 'object' &&
+              !(dateFilter instanceof Date) &&
+              dateFilter.lt instanceof Date
+                ? dateFilter.lt
+                : undefined;
+            if (gte) {
+              list = list.filter((a) => new Date(a.createdAt) >= gte);
+            }
+            if (lt) {
+              list = list.filter((a) => new Date(a.createdAt) < lt);
+            }
           }
 
           const map = new Map<string, GroupRecord>();
@@ -228,6 +294,27 @@ describe('Officer Dashboard API (e2e)', () => {
               );
             }
           }
+          if (where?.createdAt) {
+            const dateFilter = where.createdAt;
+            const gte =
+              typeof dateFilter === 'object' &&
+              !(dateFilter instanceof Date) &&
+              dateFilter.gte instanceof Date
+                ? dateFilter.gte
+                : undefined;
+            const lt =
+              typeof dateFilter === 'object' &&
+              !(dateFilter instanceof Date) &&
+              dateFilter.lt instanceof Date
+                ? dateFilter.lt
+                : undefined;
+            if (gte) {
+              list = list.filter((a) => new Date(a.createdAt) >= gte);
+            }
+            if (lt) {
+              list = list.filter((a) => new Date(a.createdAt) < lt);
+            }
+          }
           const map = new Map<string, GroupRecord>();
           for (const item of list) {
             const keyParts: string[] = [];
@@ -279,7 +366,16 @@ describe('Officer Dashboard API (e2e)', () => {
         }) => {
           let list = [...dbPetitions];
           if (where?.neighborhoodId) {
-            list = list.filter((p) => p.neighborhoodId === where.neighborhoodId);
+            if (
+              typeof where.neighborhoodId === 'object' &&
+              'not' in where.neighborhoodId
+            ) {
+              list = list.filter((p) => p.neighborhoodId !== null);
+            } else if (typeof where.neighborhoodId === 'string') {
+              list = list.filter(
+                (p) => p.neighborhoodId === where.neighborhoodId,
+              );
+            }
           }
           if (where?.status) {
             list = list.filter((p) => p.status === where.status);
@@ -616,6 +712,13 @@ describe('Officer Dashboard API (e2e)', () => {
         '/api/dashboard/petition-categories',
       );
       expect(res3.status).toBe(401);
+
+      const res4 = await request(app.getHttpServer()).get(
+        '/api/dashboard/periodic-report?periodType=month&year=2026&period=1',
+      );
+      expect(res4.status).toBe(401);
+      expect(res4.body.success).toBe(false);
+      expect(res4.body.errorCode).toBe(ErrorCode.UNAUTHORIZED);
     });
 
     it('should return 403 Forbidden for resident accounts', async () => {
@@ -635,6 +738,13 @@ describe('Officer Dashboard API (e2e)', () => {
         .get('/api/dashboard/petition-categories')
         .set('Cookie', [residentCookie]);
       expect(res3.status).toBe(403);
+
+      const res4 = await request(app.getHttpServer())
+        .get('/api/dashboard/periodic-report?periodType=month&year=2026&period=1')
+        .set('Cookie', [residentCookie]);
+      expect(res4.status).toBe(403);
+      expect(res4.body.success).toBe(false);
+      expect(res4.body.errorCode).toBe(ErrorCode.FORBIDDEN);
     });
 
     it('should return 403 Forbidden for leader accounts', async () => {
@@ -654,6 +764,13 @@ describe('Officer Dashboard API (e2e)', () => {
         .get('/api/dashboard/petition-categories')
         .set('Cookie', [leaderCookie]);
       expect(res3.status).toBe(403);
+
+      const res4 = await request(app.getHttpServer())
+        .get('/api/dashboard/periodic-report?periodType=month&year=2026&period=1')
+        .set('Cookie', [leaderCookie]);
+      expect(res4.status).toBe(403);
+      expect(res4.body.success).toBe(false);
+      expect(res4.body.errorCode).toBe(ErrorCode.FORBIDDEN);
     });
   });
 
@@ -876,6 +993,112 @@ describe('Officer Dashboard API (e2e)', () => {
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
       expect(res.body.errorCode).toBe(ErrorCode.NEIGHBORHOOD_NOT_FOUND);
+    });
+  });
+
+  describe('GET /api/dashboard/periodic-report (FR-20)', () => {
+    it('should allow officer to get monthly periodic report with correct structure', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/dashboard/periodic-report?periodType=month&year=2026&period=8')
+        .set('Cookie', [officerCookie]);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      const data = res.body.data as PeriodicReportResponseDto;
+
+      expect(data.periodType).toBe(ReportingPeriodType.MONTH);
+      expect(data.year).toBe(2026);
+      expect(data.period).toBe(8);
+      expect(data.label).toBe('Tháng 8/2026');
+      expect(data.startDate).toBe('2026-08-01T00:00:00.000Z');
+      expect(data.endDateExclusive).toBe('2026-09-01T00:00:00.000Z');
+      expect(typeof data.generatedAt).toBe('string');
+      expect(Array.isArray(data.warnings)).toBe(true);
+
+      // Ward summary
+      expect(data.summary.neighborhoodCount).toBe(2);
+      expect(data.summary.activeResidentCount).toBe(2); // 2 active accounts
+      expect(data.summary.newResidentRegistrationsCount).toBe(3); // 3 accounts registered in August 2026
+      expect(data.summary.publishedAnnouncementsCount).toBe(1); // 1 announcement in August 2026
+      expect(data.summary.petitionsByStatus.total).toBe(3); // 3 petitions created in August 2026
+
+      // Neighborhood rows in stable order
+      expect(data.neighborhoods.length).toBe(2);
+      expect(data.neighborhoods[0]?.code).toBe('KP-01');
+      expect(data.neighborhoods[1]?.code).toBe('KP-02');
+
+      const kp1 = data.neighborhoods[0];
+      if (!kp1) throw new Error('Expected KP-01 row');
+      expect(kp1.activeResidentCount).toBe(1);
+      expect(kp1.newResidentRegistrationsCount).toBe(2);
+      expect(kp1.publishedAnnouncementsCount).toBe(1);
+      expect(kp1.petitionsByStatus.total).toBe(2);
+
+      // Verify no sensitive fields leaked
+      const resString = JSON.stringify(res.body);
+      expect(resString).not.toContain('phoneEncrypted');
+      expect(resString).not.toContain('phoneHash');
+      expect(resString).not.toContain('0901111111');
+      expect(resString).not.toContain('0988888888');
+    });
+
+    it('should allow officer to get quarterly periodic report with correct boundaries', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/dashboard/periodic-report?periodType=quarter&year=2026&period=3')
+        .set('Cookie', [officerCookie]);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      const data = res.body.data as PeriodicReportResponseDto;
+
+      expect(data.periodType).toBe(ReportingPeriodType.QUARTER);
+      expect(data.year).toBe(2026);
+      expect(data.period).toBe(3);
+      expect(data.label).toBe('Quý 3/2026');
+      expect(data.startDate).toBe('2026-07-01T00:00:00.000Z');
+      expect(data.endDateExclusive).toBe('2026-10-01T00:00:00.000Z');
+      expect(data.summary.neighborhoodCount).toBe(2);
+    });
+
+    it('should reject invalid periodType with 400 Bad Request', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/dashboard/periodic-report?periodType=annual&year=2026&period=1')
+        .set('Cookie', [officerCookie]);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
+    });
+
+    it('should reject invalid month (> 12 or < 1) with 400 Bad Request', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/dashboard/periodic-report?periodType=month&year=2026&period=13')
+        .set('Cookie', [officerCookie]);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
+    });
+
+    it('should reject invalid quarter (> 4 or < 1) with 400 Bad Request', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/dashboard/periodic-report?periodType=quarter&year=2026&period=5')
+        .set('Cookie', [officerCookie]);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
+    });
+
+    it('should reject future period with 400 Bad Request and VALIDATION_ERROR', async () => {
+      const futureYear = new Date().getUTCFullYear() + 1;
+      const res = await request(app.getHttpServer())
+        .get(`/api/dashboard/periodic-report?periodType=month&year=${futureYear}&period=1`)
+        .set('Cookie', [officerCookie]);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
     });
   });
 });
