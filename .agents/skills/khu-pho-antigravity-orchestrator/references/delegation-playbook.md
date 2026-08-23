@@ -28,13 +28,15 @@ Likely files or modules without prescribing a broad rewrite.
 ACCEPTANCE_CRITERIA
 Observable conditions that must pass.
 
-TEST_COMMANDS
-Exact commands discovered from manifests or CI.
+CODEX_VERIFICATION_COMMANDS
+Exact commands discovered from manifests or CI. These are for Codex after the
+handoff, not for Antigravity's default implementation-only run.
 
 IMPLEMENTATION_INSTRUCTIONS
-Implement, run focused checks, inspect your own diff, repair obvious problems,
-and rerun affected checks. Do not commit, push, deploy, add unrelated
-dependencies, or continue into later work.
+Implement using repository read/write tools only. Do not run shell commands,
+tests, lint, builds, Git, Docker, or package-manager commands. Inspect the files
+you changed and repair obvious problems. Do not commit, push, deploy, add
+unrelated dependencies, or continue into later work. Codex will verify.
 
 REQUIRED_HANDOFF
 Return exactly these headings with concise content:
@@ -67,18 +69,27 @@ From the repository root:
 ```
 
 The runner pins `gemini-3.7-flash-high`, `accept-edits`, high effort, JSON outer
-output, and a bounded timeout. It validates the model and required handoff
-sections, then writes `.ai-work/last-handoff.md`.
+output, and an eight-minute default timeout. It adds the implementation-only
+constraint, validates the model and required handoff sections, then writes
+`.ai-work/last-handoff.md`.
+
+Use `-AllowChecks` only when Antigravity truly needs to execute the packet's
+verification commands and a fresh CLI permission smoke test has already passed.
+This is opt-in because Antigravity CLI 1.1.x on Windows can still reject commands
+that are present in `permissions.allow`.
 
 If the CLI reports an interrupted stream while repository changes are present,
-resume the same conversation with a compact continuation prompt and
-`-Continue`; do not start the implementation over.
+resume the same conversation once with a compact continuation prompt and
+`-Continue`; do not start the implementation over. Never use `-Continue` after
+a permission denial. Stop that run, review the existing diff, and let Codex run
+the verification command.
 
-Use the CLI for ordinary delegation. Use Computer Use only for interactive
-authentication, permission dialogs, or a CLI failure that genuinely requires
-the desktop application. Use Chrome only when an Antigravity web session is
-explicitly required. After any UI fallback, return to repository diff and shell
-verification for acceptance.
+Use the CLI for ordinary delegation. For an exceptional interactive issue that
+cannot be resolved in the CLI, prefer the lightweight Antigravity desktop
+task/chat surface, then the full IDE editor only if necessary. Computer Use is
+only the transport for those recovery actions, not the normal coding path. Use
+Chrome only when an Antigravity web session is explicitly required. After any
+UI fallback, return to repository diff and shell verification for acceptance.
 
 ## Repair prompt
 
@@ -92,7 +103,7 @@ For a verified defect, create `.ai-work/repair-N.md` containing only:
 6. the same required handoff headings.
 
 Do not request a broad redo unless the implementation is unusable. Run no more
-than two repair delegations per user request.
+than one repair delegation per user request.
 
 ## Stop conditions
 

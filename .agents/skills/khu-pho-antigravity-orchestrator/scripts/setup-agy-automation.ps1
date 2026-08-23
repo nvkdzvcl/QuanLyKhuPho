@@ -15,6 +15,12 @@ $settingsPath = Join-Path $TargetUserProfile ".gemini\antigravity-cli\settings.j
 $requiredRules = @(
     "read_file($repoRootForRules)",
     "write_file($repoRootForRules)",
+    # Official token-prefix rules. These cover only project verification
+    # commands; package mutation, Git mutation, and global command access remain
+    # unapproved.
+    "command(pnpm (lint|typecheck|test|build))",
+    "command(pnpm --filter @quanlykhupho/(shared-types|api|web) (lint|typecheck|test|build))",
+    "command(pnpm exec turbo run (lint|typecheck|test|build))",
     "command(git (status|diff|ls-files|rev-parse|log).*)",
     "command(git status)",
     "command(git status -s)",

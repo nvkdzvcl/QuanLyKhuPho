@@ -4,7 +4,7 @@ param(
     [string]$PromptPath,
 
     [ValidatePattern("^\d+[smh]$")]
-    [string]$Timeout = "20m",
+    [string]$Timeout = "8m",
 
     [string]$Model = "gemini-3.7-flash-high",
 
@@ -12,6 +12,8 @@ param(
     [string]$Effort = "high",
 
     [switch]$Continue,
+
+    [switch]$AllowChecks,
 
     [switch]$DryRun
 )
@@ -39,6 +41,16 @@ if ([string]::IsNullOrWhiteSpace($prompt)) {
     throw "Prompt file is empty: $resolvedPromptPath"
 }
 
+if (-not $AllowChecks) {
+    $prompt += @"
+
+AUTOMATION_EXECUTION_MODE
+Implementation only. Use repository read/write tools only. Do not run shell
+commands, tests, lint, builds, Git, Docker, or package-manager commands. Codex
+will inspect the diff and run every verification command after handoff.
+"@
+}
+
 $workDir = Join-Path $repoRoot ".ai-work"
 $handoffPath = Join-Path $workDir "last-handoff.md"
 $logPath = Join-Path $workDir "agy-run.log"
@@ -56,6 +68,7 @@ if ($DryRun) {
         Timeout = $Timeout
         Mode = "accept-edits"
         Continue = [bool]$Continue
+        AllowChecks = [bool]$AllowChecks
         HandoffPath = $handoffPath
         LogPath = $logPath
     }
@@ -122,6 +135,10 @@ if ($result.status -ne "SUCCESS") {
     }
     else {
         $rawJson
+    }
+
+    if ($details -match "(?i)(permission|approval|soft-deny|soft denying|user denied)") {
+        throw "Antigravity hit a permission denial. Do not retry with -Continue; review the existing diff and run verification in Codex. Diagnostic log: $logPath"
     }
 
     throw "Antigravity returned status '$($result.status)': $details. Diagnostic log: $logPath"
