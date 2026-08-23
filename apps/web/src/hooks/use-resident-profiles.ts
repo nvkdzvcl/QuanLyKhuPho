@@ -9,7 +9,10 @@ import {
 } from '@quanlykhupho/shared-types';
 import { apiClient } from '../lib/api-client';
 
-export function useResidentProfiles(query: ResidentProfileFilterQueryDto = {}) {
+export function useResidentProfiles(
+  query: ResidentProfileFilterQueryDto = {},
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: ['resident-profiles', 'list', query],
     queryFn: async () => {
@@ -25,6 +28,7 @@ export function useResidentProfiles(query: ResidentProfileFilterQueryDto = {}) {
       );
       return res.data.data;
     },
+    enabled: options.enabled ?? true,
   });
 }
 

@@ -70,6 +70,26 @@ export enum HighestEducation {
   DOCTORATE = 'doctorate',
 }
 
+export enum ActivityFilterCondition {
+  ALL = 'all',
+  UNDER_18 = 'under_18',
+  OVER_18 = 'over_18',
+  PARTY_MEMBER = 'party_member',
+  CUSTOM = 'custom',
+}
+
+export enum AttendanceStatus {
+  ATTENDED = 'attended',
+  ABSENT = 'absent',
+  UNCONFIRMED = 'unconfirmed',
+}
+
+export enum ActivityRating {
+  GOOD = 'good',
+  FAIR = 'fair',
+  AVERAGE = 'average',
+}
+
 export enum ErrorCode {
   RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
   INVALID_OTP = 'INVALID_OTP',
@@ -117,4 +137,8 @@ export enum ErrorCode {
   HOUSEHOLD_NOT_FOUND = 'HOUSEHOLD_NOT_FOUND',
   INVALID_CITIZEN_ID = 'INVALID_CITIZEN_ID',
   POLITICAL_SOCIAL_PROFILE_NOT_FOUND = 'POLITICAL_SOCIAL_PROFILE_NOT_FOUND',
+  ACTIVITY_NOT_FOUND = 'ACTIVITY_NOT_FOUND',
+  INVALID_ACTIVITY_DATE = 'INVALID_ACTIVITY_DATE',
+  INVALID_PARTICIPANT = 'INVALID_PARTICIPANT',
+  DUPLICATE_PARTICIPANT = 'DUPLICATE_PARTICIPANT',
 }

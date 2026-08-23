@@ -11,3 +11,4 @@ export * from './petitions';
 export * from './dashboard';
 export * from './resident-profiles';
 export * from './political-social-profiles';
+export * from './neighborhood-activities';

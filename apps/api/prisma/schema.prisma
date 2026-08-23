@@ -94,6 +94,32 @@ enum HighestEducation {
   @@map("highest_education_enum")
 }
 
+enum ActivityFilterCondition {
+  all
+  under_18
+  over_18
+  party_member
+  custom
+
+  @@map("activity_filter_condition_enum")
+}
+
+enum AttendanceStatus {
+  attended
+  absent
+  unconfirmed
+
+  @@map("attendance_status_enum")
+}
+
+enum ActivityRating {
+  good
+  fair
+  average
+
+  @@map("activity_rating_enum")
+}
+
 model Neighborhood {
   id          String    @id @default(uuid()) @db.Uuid
   code        String    @unique @db.VarChar(50)
@@ -110,6 +136,7 @@ model Neighborhood {
   petitions        Petition[]
   households       Household[]
   residentProfiles ResidentProfile[]
+  activities       NeighborhoodActivity[]
 
   @@unique([ward, name])
   @@map("neighborhoods")
@@ -129,14 +156,15 @@ model Account {
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  neighborhood      Neighborhood?      @relation(fields: [neighborhoodId], references: [id], onDelete: Restrict)
+  neighborhood      Neighborhood?          @relation(fields: [neighborhoodId], references: [id], onDelete: Restrict)
   announcements     Announcement[]
-  comments          Comment[]          @relation("CommentAuthor")
-  moderatedComments Comment[]          @relation("CommentModerator")
+  comments          Comment[]              @relation("CommentAuthor")
+  moderatedComments Comment[]              @relation("CommentModerator")
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
-  petitions         Petition[]         @relation("PetitionAuthor")
-  petitionHistories PetitionHistory[]  @relation("PetitionHistoryAuthor")
+  petitions         Petition[]             @relation("PetitionAuthor")
+  petitionHistories PetitionHistory[]      @relation("PetitionHistoryAuthor")
+  createdActivities NeighborhoodActivity[] @relation("ActivityCreator")
 
   @@index([role, status])
   @@index([neighborhoodId, status])
@@ -332,9 +360,10 @@ model ResidentProfile {
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  household    Household    @relation(fields: [householdId], references: [id], onDelete: Restrict)
-  neighborhood Neighborhood @relation(fields: [neighborhoodId], references: [id], onDelete: Restrict)
+  household              Household                           @relation(fields: [householdId], references: [id], onDelete: Restrict)
+  neighborhood           Neighborhood                        @relation(fields: [neighborhoodId], references: [id], onDelete: Restrict)
   politicalSocialProfile PoliticalSocialProfile?
+  activityParticipations NeighborhoodActivityParticipant[]
 
   @@index([neighborhoodId])
   @@index([householdId])
@@ -361,4 +390,46 @@ model PoliticalSocialProfile {
   @@index([partyStatus])
   @@index([highestEducation])
   @@map("political_social_profiles")
+}
+
+model NeighborhoodActivity {
+  id              String                  @id @default(uuid()) @db.Uuid
+  neighborhoodId  String                  @map("neighborhood_id") @db.Uuid
+  createdById     String                  @map("created_by_id") @db.Uuid
+  name            String                  @db.VarChar(255)
+  activityDate    DateTime                @map("activity_date") @db.Date
+  description     String?                 @db.Text
+  personInCharge  String?                 @map("person_in_charge") @db.VarChar(255)
+  filterCondition ActivityFilterCondition @default(all) @map("filter_condition")
+  createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  neighborhood Neighborhood                      @relation(fields: [neighborhoodId], references: [id], onDelete: Restrict)
+  createdBy    Account                           @relation("ActivityCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  participants NeighborhoodActivityParticipant[]
+
+  @@index([neighborhoodId, activityDate])
+  @@index([activityDate])
+  @@index([createdById])
+  @@map("neighborhood_activities")
+}
+
+model NeighborhoodActivityParticipant {
+  id                String           @id @default(uuid()) @db.Uuid
+  activityId        String           @map("activity_id") @db.Uuid
+  residentProfileId String           @map("resident_profile_id") @db.Uuid
+  attendance        AttendanceStatus @default(unconfirmed)
+  notes             String?          @db.VarChar(1000)
+  rating            ActivityRating?
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  activity        NeighborhoodActivity @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  residentProfile ResidentProfile      @relation(fields: [residentProfileId], references: [id], onDelete: Restrict)
+
+  @@unique([activityId, residentProfileId])
+  @@index([activityId])
+  @@index([residentProfileId])
+  @@index([activityId, attendance])
+  @@map("neighborhood_activity_participants")
 }

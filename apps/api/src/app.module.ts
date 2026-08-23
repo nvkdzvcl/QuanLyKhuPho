@@ -14,6 +14,7 @@ import { PetitionsModule } from './petitions/petitions.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ResidentProfilesModule } from './resident-profiles/resident-profiles.module';
 import { PoliticalSocialProfilesModule } from './political-social-profiles/political-social-profiles.module';
+import { NeighborhoodActivitiesModule } from './neighborhood-activities/neighborhood-activities.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { PoliticalSocialProfilesModule } from './political-social-profiles/polit
     DashboardModule,
     ResidentProfilesModule,
     PoliticalSocialProfilesModule,
+    NeighborhoodActivitiesModule,
   ],
 })
 export class AppModule {}

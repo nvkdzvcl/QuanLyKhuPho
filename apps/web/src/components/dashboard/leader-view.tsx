@@ -26,6 +26,7 @@ import { AnnouncementFeed } from '../announcements/announcement-feed';
 import { PetitionList } from '../petitions/petition-list';
 import { ResidentProfileManagement } from '../resident-profiles/resident-profile-management';
 import { PoliticalSocialManagement } from '../political-social-profiles/political-social-management';
+import { NeighborhoodActivityManagement } from '../neighborhood-activities/neighborhood-activity-management';
 
 interface LeaderViewProps {
   user: UserDto;
@@ -172,6 +173,9 @@ export function LeaderView({ user }: LeaderViewProps) {
 
       {/* Political & Social Profiles Management Section for Leader */}
       <PoliticalSocialManagement user={user} />
+
+      {/* Neighborhood Activities Book Management Section for Leader */}
+      <NeighborhoodActivityManagement user={user} />
 
       {/* Pending Accounts Card */}
       <Card>
