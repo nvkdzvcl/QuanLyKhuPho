@@ -1,0 +1,89 @@
+[CmdletBinding(SupportsShouldProcess = $true)]
+param(
+    [switch]$Apply,
+
+    [string]$TargetUserProfile = [Environment]::GetFolderPath("UserProfile")
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+$repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\..\.."))
+$repoRootForRules = $repoRoot.Replace("\", "/").TrimEnd("/")
+$settingsPath = Join-Path $TargetUserProfile ".gemini\antigravity-cli\settings.json"
+
+$requiredRules = @(
+    "read_file($repoRootForRules)",
+    "write_file($repoRootForRules)",
+    "command(git (status|diff|ls-files|rev-parse|log).*)",
+    "command(git status)",
+    "command(git status -s)",
+    "command(git status --short)",
+    "command(git diff)",
+    "command(git diff --check)",
+    "command(git diff --stat)",
+    "command(node -v; pnpm -v)",
+    "command(node -v; pnpm -v; git status)",
+    "command(node -v; pnpm -v; docker -v; docker compose version)",
+    "command(pwd)",
+    "command(pnpm install)",
+    "command(pnpm (lint|typecheck|test|build))",
+    "command(pnpm lint)",
+    "command(pnpm typecheck)",
+    "command(pnpm test)",
+    "command(pnpm --filter @quanlykhupho/shared-types test && pnpm --filter @quanlykhupho/api test)",
+    "command(pnpm --filter @quanlykhupho/shared-types test)",
+    "command(pnpm --filter @quanlykhupho/api test)",
+    "command(pnpm --filter .* test)",
+    "command(pnpm build)",
+    "command(docker compose -f docker/docker-compose\.yml config)",
+    "command(docker compose -f docker/docker-compose.yml config)"
+)
+
+if (-not $Apply) {
+    [pscustomobject]@{
+        SettingsPath = $settingsPath
+        Repository = $repoRoot
+        ApplyRequired = $true
+        Rules = $requiredRules
+    }
+    return
+}
+
+if (-not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) {
+    throw "Antigravity CLI settings were not found: $settingsPath"
+}
+
+$settings = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
+
+if ($null -eq $settings.permissions) {
+    $settings | Add-Member -NotePropertyName permissions -NotePropertyValue ([pscustomobject]@{})
+}
+
+$existingRules = @()
+if ($null -ne $settings.permissions.allow) {
+    $existingRules = @($settings.permissions.allow)
+}
+
+$mergedRules = @($existingRules + $requiredRules | Sort-Object -Unique)
+$settings.permissions | Add-Member -NotePropertyName allow -NotePropertyValue $mergedRules -Force
+
+$timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$backupPath = "$settingsPath.quanlypho-$timestamp.bak"
+
+if ($PSCmdlet.ShouldProcess($settingsPath, "Back up and add scoped QuanLyKhuPho automation permissions")) {
+    Copy-Item -LiteralPath $settingsPath -Destination $backupPath
+    $json = $settings | ConvertTo-Json -Depth 20
+    [System.IO.File]::WriteAllText(
+        $settingsPath,
+        $json + [Environment]::NewLine,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
+[pscustomobject]@{
+    SettingsPath = $settingsPath
+    BackupPath = $backupPath
+    Repository = $repoRoot
+    AddedRules = @($requiredRules | Where-Object { $_ -notin $existingRules })
+}

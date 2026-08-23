@@ -11,6 +11,8 @@ param(
     [ValidateSet("low", "medium", "high")]
     [string]$Effort = "high",
 
+    [switch]$Continue,
+
     [switch]$DryRun
 )
 
@@ -39,6 +41,9 @@ if ([string]::IsNullOrWhiteSpace($prompt)) {
 
 $workDir = Join-Path $repoRoot ".ai-work"
 $handoffPath = Join-Path $workDir "last-handoff.md"
+$logPath = Join-Path $workDir "agy-run.log"
+
+[System.IO.Directory]::CreateDirectory($workDir) | Out-Null
 
 if ($DryRun) {
     [pscustomobject]@{
@@ -50,7 +55,9 @@ if ($DryRun) {
         Effort = $Effort
         Timeout = $Timeout
         Mode = "accept-edits"
+        Continue = [bool]$Continue
         HandoffPath = $handoffPath
+        LogPath = $logPath
     }
     return
 }
@@ -76,8 +83,13 @@ $agyArguments = @(
     "--effort", $Effort,
     "--output-format", "json",
     "--print-timeout", $Timeout,
+    "--log-file", $logPath,
     "--print=$prompt"
 )
+
+if ($Continue) {
+    $agyArguments = @("--continue") + $agyArguments
+}
 
 Push-Location -LiteralPath $repoRoot
 try {
@@ -91,7 +103,7 @@ finally {
 $rawJson = ($rawResult | Out-String).Trim()
 
 if ($agyExitCode -ne 0) {
-    throw "Antigravity exited with code $agyExitCode."
+    throw "Antigravity exited with code $agyExitCode. Diagnostic log: $logPath"
 }
 
 try {
@@ -102,7 +114,17 @@ catch {
 }
 
 if ($result.status -ne "SUCCESS") {
-    throw "Antigravity returned status '$($result.status)': $($result.error)"
+    $details = if ($result.PSObject.Properties.Name -contains "error") {
+        [string]$result.error
+    }
+    elseif ($result.PSObject.Properties.Name -contains "response") {
+        [string]$result.response
+    }
+    else {
+        $rawJson
+    }
+
+    throw "Antigravity returned status '$($result.status)': $details. Diagnostic log: $logPath"
 }
 
 $handoff = [string]$result.response
@@ -120,7 +142,6 @@ foreach ($section in $requiredSections) {
     }
 }
 
-[System.IO.Directory]::CreateDirectory($workDir) | Out-Null
 [System.IO.File]::WriteAllText(
     $handoffPath,
     $handoff,

@@ -50,6 +50,15 @@ disambiguate a contract; do not paste entire documents or files.
 
 ## Invoke Antigravity
 
+Before the first delegated run on a machine, preview and then apply the narrow
+repository permissions. The setup backs up the existing Antigravity settings
+before merging rules; it does not enable a global permission bypass.
+
+```powershell
+.\.agents\skills\khu-pho-antigravity-orchestrator\scripts\setup-agy-automation.ps1
+.\.agents\skills\khu-pho-antigravity-orchestrator\scripts\setup-agy-automation.ps1 -Apply
+```
+
 From the repository root:
 
 ```powershell
@@ -60,6 +69,10 @@ From the repository root:
 The runner pins `gemini-3.7-flash-high`, `accept-edits`, high effort, JSON outer
 output, and a bounded timeout. It validates the model and required handoff
 sections, then writes `.ai-work/last-handoff.md`.
+
+If the CLI reports an interrupted stream while repository changes are present,
+resume the same conversation with a compact continuation prompt and
+`-Continue`; do not start the implementation over.
 
 Use the CLI for ordinary delegation. Use Computer Use only for interactive
 authentication, permission dialogs, or a CLI failure that genuinely requires
