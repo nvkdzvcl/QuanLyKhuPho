@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '@quanlykhupho/ui';
 import {
+  ExportDataset,
   NeighborhoodDto,
   PetitionCategory,
   PetitionDto,
@@ -27,6 +28,7 @@ import {
   PetitionCategoryBadge,
   PetitionStatusBadge,
 } from './petition-status-badge';
+import { ExportModal } from '../exports/export-modal';
 
 interface PetitionListProps {
   user: UserDto;
@@ -58,6 +60,7 @@ export function PetitionList({ user, title, description }: PetitionListProps) {
   const [selectedNeighborhoodId, setSelectedNeighborhoodId] =
     useState<string>('');
   const [page, setPage] = useState(1);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const { data: neighborhoods = [] } = useNeighborhoods();
 
@@ -136,6 +139,16 @@ export function PetitionList({ user, title, description }: PetitionListProps) {
                 className="shrink-0 shadow-sm"
               >
                 + Gửi kiến nghị mới
+              </Button>
+            )}
+            {!isResident && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsExportModalOpen(true)}
+                className="shrink-0"
+              >
+                📥 Xuất dữ liệu
               </Button>
             )}
           </div>
@@ -495,6 +508,27 @@ export function PetitionList({ user, title, description }: PetitionListProps) {
           currentUser={user}
           onStatusChanged={() => {
             refetch();
+          }}
+        />
+      )}
+
+      {!isResident && (
+        <ExportModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          dataset={ExportDataset.PETITIONS}
+          title="Xuất danh sách Kiến nghị"
+          description="Xuất toàn bộ kiến nghị khớp bộ lọc hiện tại."
+          filters={{
+            status: statusFilter,
+            category: categoryFilter,
+            startDate: startDate || undefined,
+            endDate: endDate || undefined,
+            search: searchTerm.trim() || undefined,
+            neighborhoodId:
+              isOfficer && selectedNeighborhoodId
+                ? selectedNeighborhoodId
+                : user.neighborhoodId || undefined,
           }}
         />
       )}

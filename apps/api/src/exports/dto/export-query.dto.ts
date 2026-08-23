@@ -1,34 +1,46 @@
 import {
+  IsDateString,
   IsEnum,
   IsIn,
   IsInt,
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import {
+  ExportFormat,
+  ExportQueryDto as IExportQueryDto,
   Gender,
   HighestEducation,
   PartyStatus,
-  ResidentProfileFilterQueryDto,
+  PetitionCategory,
+  PetitionStatus,
 } from '@quanlykhupho/shared-types';
 
-export class ResidentProfileQueryDto implements ResidentProfileFilterQueryDto {
+export class ExportQueryDto implements IExportQueryDto {
+  @IsOptional()
+  @IsEnum(ExportFormat, {
+    message: 'Định dạng xuất dữ liệu không hợp lệ (hỗ trợ csv hoặc xlsx)',
+  })
+  format?: ExportFormat = ExportFormat.CSV;
+
+  @IsOptional()
+  @IsUUID('4', { message: 'Mã khu phố không đúng định dạng UUID' })
+  neighborhoodId?: string;
+
+  // Resident / Political-Social filters
   @IsOptional()
   @IsString()
   @MaxLength(100, { message: 'Từ khóa tìm kiếm tối đa 100 ký tự' })
   search?: string;
 
   @IsOptional()
-  @IsUUID('4', { message: 'Mã khu phố không đúng định dạng UUID' })
-  neighborhoodId?: string;
-
-  @IsOptional()
-  @IsEnum(Gender, { message: 'Giới tính lọc không hợp lệ' })
+  @IsEnum(Gender, { message: 'Giới tính không hợp lệ' })
   gender?: Gender;
 
   @IsOptional()
@@ -72,16 +84,28 @@ export class ResidentProfileQueryDto implements ResidentProfileFilterQueryDto {
   @MaxLength(255, { message: 'Phường/Xã tối đa 255 ký tự' })
   ward?: string;
 
+  // Activity filter
   @IsOptional()
-  @Type(() => Number)
-  @IsInt({ message: 'Số trang phải là số nguyên' })
-  @Min(1, { message: 'Số trang tối thiểu là 1' })
-  page?: number = 1;
+  @IsString()
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, {
+    message: 'Định dạng tháng phải là YYYY-MM (Ví dụ: 2026-08)',
+  })
+  month?: string;
+
+  // Petition filters
+  @IsOptional()
+  @IsEnum(PetitionStatus, { message: 'Trạng thái kiến nghị không hợp lệ' })
+  status?: PetitionStatus;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt({ message: 'Số bản ghi trên trang phải là số nguyên' })
-  @Min(1, { message: 'Số bản ghi trên trang tối thiểu là 1' })
-  @Max(50, { message: 'Số bản ghi trên trang tối đa là 50' })
-  limit?: number = 10;
+  @IsEnum(PetitionCategory, { message: 'Danh mục kiến nghị không hợp lệ' })
+  category?: PetitionCategory;
+
+  @IsOptional()
+  @IsDateString({}, { message: 'Ngày bắt đầu không đúng định dạng YYYY-MM-DD' })
+  startDate?: string;
+
+  @IsOptional()
+  @IsDateString({}, { message: 'Ngày kết thúc không đúng định dạng YYYY-MM-DD' })
+  endDate?: string;
 }

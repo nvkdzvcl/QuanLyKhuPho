@@ -15,6 +15,7 @@ import {
   ResidentProfileDto,
   ResidentProfileFilterQueryDto,
   ResidentProfileListResponseDto,
+  ResidentExtractionResponseDto,
   UpdateResidentProfileDto,
   UserDto,
   UserRole,
@@ -22,6 +23,7 @@ import {
 import { AppException } from '../core/exceptions/app.exception';
 import { PrismaService } from '../prisma/prisma.service';
 import { CryptoService } from '../security/crypto.service';
+import { buildResidentWhereInput } from './resident-profile-filter.utils';
 import {
   maskCitizenId,
   maskEmail,
@@ -393,66 +395,18 @@ export class ResidentProfilesService {
    * Paginated list and search for resident profiles.
    * Leaders are scoped strictly to their assigned neighborhood.
    * Officers can view ward-wide or filter by neighborhood.
+   * All advanced filter criteria combine with AND.
    * Returns masked citizen IDs.
    */
   async findAll(
     currentUser: UserDto,
     query: ResidentProfileFilterQueryDto,
   ): Promise<ResidentProfileListResponseDto> {
-    if (
-      currentUser.role !== UserRole.LEADER &&
-      currentUser.role !== UserRole.OFFICER
-    ) {
-      throw new AppException(
-        'Chỉ Trưởng khu phố và Cán bộ phường mới có quyền truy cập thông tin nhân khẩu.',
-        HttpStatus.FORBIDDEN,
-        ErrorCode.FORBIDDEN,
-      );
-    }
-
-    const where: Prisma.ResidentProfileWhereInput = {};
-
-    // Scoping
-    if (currentUser.role === UserRole.LEADER) {
-      if (!currentUser.neighborhoodId) {
-        throw new AppException(
-          'Trưởng khu phố chưa được gán vào khu phố nào.',
-          HttpStatus.FORBIDDEN,
-          ErrorCode.FORBIDDEN,
-        );
-      }
-      where.neighborhoodId = currentUser.neighborhoodId;
-    } else if (currentUser.role === UserRole.OFFICER) {
-      if (query.neighborhoodId) {
-        where.neighborhoodId = query.neighborhoodId;
-      }
-    }
-
-    // Gender filter
-    if (query.gender) {
-      where.gender = query.gender as unknown as DbGender;
-    }
-
-    // Search filter: fullName, household code, or exact 12-digit citizen ID
-    if (query.search && query.search.trim().length > 0) {
-      const trimmedSearch = query.search.trim();
-      const isExactCid = /^\d{12}$/.test(trimmedSearch.replace(/[\s-]/g, ''));
-
-      if (isExactCid) {
-        const cleanedCid = trimmedSearch.replace(/[\s-]/g, '');
-        const searchHash = this.cryptoService.hashCitizenId(cleanedCid);
-        where.OR = [
-          { citizenIdHash: searchHash },
-          { fullName: { contains: trimmedSearch, mode: 'insensitive' } },
-          { household: { code: { contains: trimmedSearch, mode: 'insensitive' } } },
-        ];
-      } else {
-        where.OR = [
-          { fullName: { contains: trimmedSearch, mode: 'insensitive' } },
-          { household: { code: { contains: trimmedSearch, mode: 'insensitive' } } },
-        ];
-      }
-    }
+    const where = buildResidentWhereInput(
+      currentUser,
+      query,
+      this.cryptoService,
+    );
 
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.min(50, Math.max(1, Number(query.limit) || 10));
@@ -480,6 +434,58 @@ export class ResidentProfilesService {
       page,
       limit,
       totalPages,
+    };
+  }
+
+  /**
+   * Bounded minimal-result extraction endpoint for seeding activities.
+   * Returns only resident id and fullName (no sensitive data).
+   * Enforces 500 records hard maximum and fails explicitly if exceeded.
+   */
+  async extractResidents(
+    currentUser: UserDto,
+    query: ResidentProfileFilterQueryDto,
+  ): Promise<ResidentExtractionResponseDto> {
+    const where = buildResidentWhereInput(
+      currentUser,
+      query,
+      this.cryptoService,
+    );
+
+    const total = await this.prisma.residentProfile.count({ where });
+
+    if (total > 500) {
+      throw new AppException(
+        `Số lượng nhân khẩu phù hợp (${total}) vượt quá giới hạn trích xuất tối đa là 500. Vui lòng thu hẹp bộ lọc.`,
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.EXTRACTION_LIMIT_EXCEEDED,
+      );
+    }
+
+    const profiles = await this.prisma.residentProfile.findMany({
+      where,
+      select: {
+        id: true,
+        fullName: true,
+      },
+      orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
+      take: 501,
+    });
+
+    if (profiles.length > 500) {
+      throw new AppException(
+        `Số lượng nhân khẩu phù hợp (${profiles.length}) vượt quá giới hạn trích xuất tối đa là 500. Vui lòng thu hẹp bộ lọc.`,
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.EXTRACTION_LIMIT_EXCEEDED,
+      );
+    }
+
+    return {
+      items: profiles.map((p) => ({
+        id: p.id,
+        fullName: p.fullName,
+      })),
+      total,
     };
   }
 

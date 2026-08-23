@@ -4,6 +4,8 @@ import {
   AccountStatus,
   ErrorCode,
   Gender,
+  HighestEducation,
+  PartyStatus,
   UserDto,
   UserRole,
 } from '@quanlykhupho/shared-types';
@@ -297,6 +299,139 @@ describe('ResidentProfilesService', () => {
       await expect(service.findAll(mockResident, {})).rejects.toThrow(
         AppException,
       );
+    });
+
+    it('should filter by ageFrom and ageTo cutoffs', async () => {
+      mockPrisma.residentProfile.findMany.mockResolvedValueOnce([]);
+      mockPrisma.residentProfile.count.mockResolvedValueOnce(0);
+
+      await service.findAll(mockOfficer, { ageFrom: 18, ageTo: 60 });
+
+      expect(mockPrisma.residentProfile.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            birthDate: expect.objectContaining({
+              lte: expect.any(Date),
+              gt: expect.any(Date),
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('should reject ageFrom > ageTo with 400 Bad Request', async () => {
+      await expect(
+        service.findAll(mockOfficer, { ageFrom: 30, ageTo: 20 }),
+      ).rejects.toThrow(AppException);
+    });
+
+    it('should translate minEducation to allowed hierarchy array', async () => {
+      mockPrisma.residentProfile.findMany.mockResolvedValueOnce([]);
+      mockPrisma.residentProfile.count.mockResolvedValueOnce(0);
+
+      await service.findAll(mockOfficer, {
+        minEducation: HighestEducation.BACHELOR,
+      });
+
+      expect(mockPrisma.residentProfile.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            politicalSocialProfile: expect.objectContaining({
+              highestEducation: {
+                in: ['bachelor', 'master', 'doctorate'],
+              },
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('should filter by partyStatus not_updated', async () => {
+      mockPrisma.residentProfile.findMany.mockResolvedValueOnce([]);
+      mockPrisma.residentProfile.count.mockResolvedValueOnce(0);
+
+      await service.findAll(mockOfficer, {
+        partyStatus: 'not_updated',
+      });
+
+      expect(mockPrisma.residentProfile.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            politicalSocialProfile: null,
+          }),
+        }),
+      );
+    });
+
+    it('should combine all filters with AND logic', async () => {
+      mockPrisma.residentProfile.findMany.mockResolvedValueOnce([]);
+      mockPrisma.residentProfile.count.mockResolvedValueOnce(0);
+
+      await service.findAll(mockOfficer, {
+        gender: Gender.FEMALE,
+        relationshipToHead: 'Chủ hộ',
+        occupation: 'Giáo viên',
+        ward: 'Phường Bến Nghé',
+        partyStatus: PartyStatus.PARTY_MEMBER,
+        minEducation: HighestEducation.COLLEGE,
+      });
+
+      expect(mockPrisma.residentProfile.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            gender: 'female',
+            relationshipToHead: { contains: 'Chủ hộ', mode: 'insensitive' },
+            occupation: { contains: 'Giáo viên', mode: 'insensitive' },
+            ward: { contains: 'Phường Bến Nghé', mode: 'insensitive' },
+            politicalSocialProfile: expect.objectContaining({
+              partyStatus: 'party_member',
+              highestEducation: { in: ['college', 'bachelor', 'master', 'doctorate'] },
+            }),
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('extractResidents', () => {
+    it('should extract bounded list returning only id and fullName without sensitive data', async () => {
+      mockPrisma.residentProfile.count.mockResolvedValueOnce(2);
+      mockPrisma.residentProfile.findMany.mockResolvedValueOnce([
+        { id: 'res-1', fullName: 'An Văn A', neighborhoodId: 'neigh-1' },
+        { id: 'res-2', fullName: 'Bình Văn B', neighborhoodId: 'neigh-1' },
+      ]);
+
+      const result = await service.extractResidents(mockLeader, {
+        gender: Gender.MALE,
+      });
+
+      expect(result.total).toBe(2);
+      expect(result.items).toHaveLength(2);
+      expect(result.items[0]).toEqual({
+        id: 'res-1',
+        fullName: 'An Văn A',
+      });
+      // Verify no citizenId, phone, email, birthDate in items
+      expect((result.items[0] as unknown as Record<string, unknown>).citizenId).toBeUndefined();
+      expect((result.items[0] as unknown as Record<string, unknown>).maskedCitizenId).toBeUndefined();
+      expect((result.items[0] as unknown as Record<string, unknown>).phone).toBeUndefined();
+      expect((result.items[0] as unknown as Record<string, unknown>).birthDate).toBeUndefined();
+    });
+
+    it('should fail explicitly with 400 when matching records exceed 500', async () => {
+      mockPrisma.residentProfile.count.mockResolvedValueOnce(501);
+
+      await expect(
+        service.extractResidents(mockOfficer, { ward: 'Bến Nghé' }),
+      ).rejects.toThrow(AppException);
+
+      try {
+        await service.extractResidents(mockOfficer, { ward: 'Bến Nghé' });
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(AppException);
+        expect((err as AppException).getStatus()).toBe(HttpStatus.BAD_REQUEST);
+        expect((err as AppException).errorCode).toBe(ErrorCode.EXTRACTION_LIMIT_EXCEEDED);
+      }
     });
   });
 

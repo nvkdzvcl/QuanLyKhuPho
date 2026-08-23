@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Badge,
@@ -18,6 +18,7 @@ import {
   ActivityFilterCondition,
   ActivityRating,
   AttendanceStatus,
+  ExportDataset,
   Gender,
   NeighborhoodActivityDto,
   UserDto,
@@ -33,9 +34,18 @@ import {
   useUpdateNeighborhoodActivity,
 } from '../../hooks/use-neighborhood-activities';
 import { getErrorMessage } from '../../lib/api-client';
+import { ExportModal } from '../exports/export-modal';
 
 interface NeighborhoodActivityManagementProps {
   user: UserDto;
+  creationSeed?: ActivityCreationSeed | null;
+  onCreationSeedConsumed?: () => void;
+}
+
+export interface ActivityCreationSeed {
+  targetNeighborhoodId: string;
+  customResidentIds: string[];
+  extractedResidents: { id: string; fullName: string }[];
 }
 
 export const FILTER_CONDITION_LABELS: Record<ActivityFilterCondition, string> = {
@@ -81,6 +91,8 @@ function getCurrentDateString(): string {
 
 export function NeighborhoodActivityManagement({
   user,
+  creationSeed,
+  onCreationSeedConsumed,
 }: NeighborhoodActivityManagementProps) {
   const isOfficer = user.role === UserRole.OFFICER;
 
@@ -127,6 +139,26 @@ export function NeighborhoodActivityManagement({
   >([]);
   const [customResidentSearch, setCustomResidentSearch] = useState<string>('');
   const [createError, setCreateError] = useState<string | null>(null);
+  const [seededResidents, setSeededResidents] = useState<
+    { id: string; fullName: string }[]
+  >([]);
+  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!creationSeed) return;
+    setCreateName('');
+    setCreateDate(getCurrentDateString());
+    setCreateDescription('');
+    setCreatePersonInCharge('');
+    setCreateFilterCondition(ActivityFilterCondition.CUSTOM);
+    setCreateTargetNeighborhoodId(creationSeed.targetNeighborhoodId);
+    setCustomSelectedResidentIds([...creationSeed.customResidentIds]);
+    setSeededResidents([...creationSeed.extractedResidents]);
+    setCustomResidentSearch('');
+    setCreateError(null);
+    setIsCreateModalOpen(true);
+    onCreationSeedConsumed?.();
+  }, [creationSeed, onCreationSeedConsumed]);
 
   // Detail & Attendance Sheet Modal state
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(
@@ -228,9 +260,17 @@ export function NeighborhoodActivityManagement({
     setCreateFilterCondition(ActivityFilterCondition.ALL);
     setCreateTargetNeighborhoodId(user.neighborhoodId || '');
     setCustomSelectedResidentIds([]);
+    setSeededResidents([]);
     setCustomResidentSearch('');
     setCreateError(null);
     setIsCreateModalOpen(true);
+  };
+
+  const handleCloseCreateModal = () => {
+    if (createMutation.isPending) return;
+    setIsCreateModalOpen(false);
+    setSeededResidents([]);
+    setCustomSelectedResidentIds([]);
   };
 
   // Submit Create Activity
@@ -278,6 +318,7 @@ export function NeighborhoodActivityManagement({
       }
 
       setIsCreateModalOpen(false);
+      setSeededResidents([]);
       // Auto open detail view of created activity
       handleOpenDetailModal(res.activity.id);
     } catch (err) {
@@ -481,7 +522,7 @@ export function NeighborhoodActivityManagement({
   );
 
   return (
-    <div className="space-y-6">
+    <div id="neighborhood-activities" className="space-y-6 scroll-mt-6">
       {/* Toast Feedback */}
       {toastFeedback && (
         <Alert
@@ -515,6 +556,14 @@ export function NeighborhoodActivityManagement({
                 className="text-xs sm:text-sm font-semibold"
               >
                 + Tạo hoạt động mới
+              </Button>
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => setIsExportModalOpen(true)}
+                className="text-xs sm:text-sm"
+              >
+                📥 Xuất dữ liệu
               </Button>
               <Button
                 variant="outline"
@@ -883,7 +932,7 @@ export function NeighborhoodActivityManagement({
       {/* Create Activity Modal */}
       <Modal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={handleCloseCreateModal}
         title="Tạo Hoạt động Khu Phố Mới"
         description="Khởi tạo hoạt động và trích xuất danh sách nhân khẩu tham gia tự động theo điều kiện."
         maxWidth="lg"
@@ -922,6 +971,7 @@ export function NeighborhoodActivityManagement({
                 onChange={(e) => {
                   setCreateTargetNeighborhoodId(e.target.value);
                   setCustomSelectedResidentIds([]);
+                  setSeededResidents([]);
                   setCustomResidentSearch('');
                 }}
                 options={[
@@ -948,11 +998,14 @@ export function NeighborhoodActivityManagement({
           <Select
             label="Điều kiện trích xuất danh sách tham gia"
             value={createFilterCondition}
-            onChange={(e) =>
-              setCreateFilterCondition(
-                e.target.value as ActivityFilterCondition,
-              )
-            }
+            onChange={(e) => {
+              const nextCondition = e.target.value as ActivityFilterCondition;
+              setCreateFilterCondition(nextCondition);
+              if (nextCondition !== ActivityFilterCondition.CUSTOM) {
+                setCustomSelectedResidentIds([]);
+                setSeededResidents([]);
+              }
+            }}
             options={[
               {
                 value: ActivityFilterCondition.ALL,
@@ -995,6 +1048,13 @@ export function NeighborhoodActivityManagement({
                   chọn)
                 </h4>
               </div>
+
+              {seededResidents.length > 0 && (
+                <Alert
+                  variant="info"
+                  message={`Đã nhận ${seededResidents.length} nhân khẩu từ bộ lọc nâng cao. Bạn vẫn có thể tìm và điều chỉnh danh sách trước khi tạo.`}
+                />
+              )}
 
               <Input
                 placeholder="Tìm kiếm nhân khẩu theo họ tên..."
@@ -1076,7 +1136,7 @@ export function NeighborhoodActivityManagement({
               type="button"
               variant="outline"
               size="md"
-              onClick={() => setIsCreateModalOpen(false)}
+              onClick={handleCloseCreateModal}
               disabled={createMutation.isPending}
             >
               Hủy
@@ -1439,6 +1499,31 @@ export function NeighborhoodActivityManagement({
           </div>
         </form>
       </Modal>
+
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        dataset={ExportDataset.ACTIVITIES}
+        title="Xuất Sổ hoạt động Khu phố"
+        description="Xuất toàn bộ hoạt động khớp tháng và khu phố đang chọn."
+        filters={{
+          month: selectedMonth,
+          neighborhoodId: effectiveNeighborhoodId,
+        }}
+        filterSummary={[
+          { label: 'Tháng', value: selectedMonth },
+          ...(effectiveNeighborhoodId
+            ? [
+                {
+                  label: 'Khu phố',
+                  value:
+                    neighborhoods.find((item) => item.id === effectiveNeighborhoodId)
+                      ?.name || user.neighborhood?.name || 'Khu phố được chọn',
+                },
+              ]
+            : []),
+        ]}
+      />
     </div>
   );
 }

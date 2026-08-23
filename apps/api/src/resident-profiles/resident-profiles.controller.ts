@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  ResidentExtractionResponseDto,
   ResidentProfileDetailDto,
   ResidentProfileListResponseDto,
   UserDto,
@@ -43,6 +44,14 @@ export class ResidentProfilesController {
     @Query() query: ResidentProfileQueryDto,
   ): Promise<ResidentProfileListResponseDto> {
     return this.residentProfilesService.findAll(user, query);
+  }
+
+  @Get('extract')
+  async extract(
+    @CurrentUser() user: UserDto,
+    @Query() query: ResidentProfileQueryDto,
+  ): Promise<ResidentExtractionResponseDto> {
+    return this.residentProfilesService.extractResidents(user, query);
   }
 
   @Get(':id')

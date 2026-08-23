@@ -230,6 +230,39 @@ describe('Resident Profiles Workflow (e2e)', () => {
           if (where?.citizenIdHash) {
             list = list.filter((p) => p.citizenIdHash === where.citizenIdHash);
           }
+          if (where?.relationshipToHead) {
+            const relSearch = getStringContains(where.relationshipToHead);
+            if (relSearch) {
+              list = list.filter((p) =>
+                p.relationshipToHead?.toLowerCase().includes(relSearch.toLowerCase()),
+              );
+            }
+          }
+          if (where?.occupation) {
+            const occSearch = getStringContains(where.occupation);
+            if (occSearch) {
+              list = list.filter((p) =>
+                p.occupation?.toLowerCase().includes(occSearch.toLowerCase()),
+              );
+            }
+          }
+          if (where?.ward) {
+            const wardSearch = getStringContains(where.ward);
+            if (wardSearch) {
+              list = list.filter((p) =>
+                p.ward?.toLowerCase().includes(wardSearch.toLowerCase()),
+              );
+            }
+          }
+          if (where?.birthDate) {
+            const bd = where.birthDate as Prisma.DateTimeFilter;
+            if (bd.lte) {
+              list = list.filter((p) => p.birthDate <= new Date(bd.lte as Date));
+            }
+            if (bd.gt) {
+              list = list.filter((p) => p.birthDate > new Date(bd.gt as Date));
+            }
+          }
           if (where?.OR && Array.isArray(where.OR)) {
             list = list.filter((p) =>
               where.OR!.some((cond) => {
@@ -270,6 +303,39 @@ describe('Resident Profiles Workflow (e2e)', () => {
           }
           if (where?.citizenIdHash) {
             list = list.filter((p) => p.citizenIdHash === where.citizenIdHash);
+          }
+          if (where?.relationshipToHead) {
+            const relSearch = getStringContains(where.relationshipToHead);
+            if (relSearch) {
+              list = list.filter((p) =>
+                p.relationshipToHead?.toLowerCase().includes(relSearch.toLowerCase()),
+              );
+            }
+          }
+          if (where?.occupation) {
+            const occSearch = getStringContains(where.occupation);
+            if (occSearch) {
+              list = list.filter((p) =>
+                p.occupation?.toLowerCase().includes(occSearch.toLowerCase()),
+              );
+            }
+          }
+          if (where?.ward) {
+            const wardSearch = getStringContains(where.ward);
+            if (wardSearch) {
+              list = list.filter((p) =>
+                p.ward?.toLowerCase().includes(wardSearch.toLowerCase()),
+              );
+            }
+          }
+          if (where?.birthDate) {
+            const bd = where.birthDate as Prisma.DateTimeFilter;
+            if (bd.lte) {
+              list = list.filter((p) => p.birthDate <= new Date(bd.lte as Date));
+            }
+            if (bd.gt) {
+              list = list.filter((p) => p.birthDate > new Date(bd.gt as Date));
+            }
           }
           if (where?.OR && Array.isArray(where.OR)) {
             list = list.filter((p) =>
@@ -751,6 +817,57 @@ describe('Resident Profiles Workflow (e2e)', () => {
         .set('Origin', 'http://localhost:3000')
         .send({ occupation: 'Hack' })
         .expect(403);
+    });
+  });
+
+  describe('Advanced Filters & Extraction Workflow (FR-24)', () => {
+    it('should allow leader to extract matching residents returning only id and fullName', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/resident-profiles/extract?gender=male')
+        .set('Cookie', [leader1Cookie])
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.total).toBeGreaterThanOrEqual(1);
+      expect(Array.isArray(res.body.data.items)).toBe(true);
+      const first = res.body.data.items[0];
+      expect(first).toHaveProperty('id');
+      expect(first).toHaveProperty('fullName');
+      // Verify no sensitive fields returned
+      expect(first.citizenId).toBeUndefined();
+      expect(first.phone).toBeUndefined();
+      expect(first.email).toBeUndefined();
+      expect(first.birthDate).toBeUndefined();
+      expect(first.neighborhoodId).toBeUndefined();
+    });
+
+    it('should reject extraction request from resident role with 403 Forbidden', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/resident-profiles/extract')
+        .set('Cookie', [residentCookie])
+        .expect(403);
+
+      expect(res.body.errorCode).toBe(ErrorCode.FORBIDDEN);
+    });
+
+    it('should reject invalid age bounds (ageFrom > ageTo) with 400 Bad Request', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/resident-profiles/extract?ageFrom=50&ageTo=20')
+        .set('Cookie', [officerCookie])
+        .expect(400);
+
+      expect(res.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
+    });
+
+    it('should allow officer to extract with combined filters', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/resident-profiles/extract?ward=B%E1%BA%BFn%20Ngh%C3%A9&gender=female')
+        .set('Cookie', [officerCookie])
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.items.length).toBe(1);
+      expect(res.body.data.items[0].fullName).toBe('Trần Thị Bình');
     });
   });
 });

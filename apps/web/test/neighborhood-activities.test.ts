@@ -10,12 +10,27 @@ import {
   NeighborhoodActivityDto,
 } from '@quanlykhupho/shared-types';
 import {
+  ActivityCreationSeed,
   ACTIVITY_RATING_LABELS,
   ATTENDANCE_STATUS_LABELS,
   FILTER_CONDITION_LABELS,
 } from '../src/components/neighborhood-activities/neighborhood-activity-management';
 
 describe('Web Neighborhood Activities Contracts & UI Labels', () => {
+  it('accepts a typed advanced-filter seed for custom activity creation', () => {
+    const seed: ActivityCreationSeed = {
+      targetNeighborhoodId: 'neigh-1',
+      customResidentIds: ['resident-1', 'resident-2'],
+      extractedResidents: [
+        { id: 'resident-1', fullName: 'Nguyễn Văn A' },
+        { id: 'resident-2', fullName: 'Trần Thị B' },
+      ],
+    };
+
+    expect(seed.customResidentIds).toHaveLength(2);
+    expect(seed.extractedResidents[0]?.fullName).toBe('Nguyễn Văn A');
+  });
+
   it('should have Vietnamese labels for all 5 filter condition modes', () => {
     expect(FILTER_CONDITION_LABELS[ActivityFilterCondition.ALL]).toBe(
       'Tất cả nhân khẩu',

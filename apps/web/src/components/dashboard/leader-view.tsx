@@ -26,13 +26,18 @@ import { AnnouncementFeed } from '../announcements/announcement-feed';
 import { PetitionList } from '../petitions/petition-list';
 import { ResidentProfileManagement } from '../resident-profiles/resident-profile-management';
 import { PoliticalSocialManagement } from '../political-social-profiles/political-social-management';
-import { NeighborhoodActivityManagement } from '../neighborhood-activities/neighborhood-activity-management';
+import {
+  ActivityCreationSeed,
+  NeighborhoodActivityManagement,
+} from '../neighborhood-activities/neighborhood-activity-management';
 
 interface LeaderViewProps {
   user: UserDto;
 }
 
 export function LeaderView({ user }: LeaderViewProps) {
+  const [activityCreationSeed, setActivityCreationSeed] =
+    useState<ActivityCreationSeed | null>(null);
   const {
     data: pendingResidents = [],
     isLoading,
@@ -169,13 +174,27 @@ export function LeaderView({ user }: LeaderViewProps) {
       <PetitionList user={user} />
 
       {/* Resident Profiles Management Section for Leader */}
-      <ResidentProfileManagement user={user} />
+      <ResidentProfileManagement
+        user={user}
+        onSeedActivity={(seed) => {
+          setActivityCreationSeed(seed);
+          window.requestAnimationFrame(() =>
+            document
+              .getElementById('neighborhood-activities')
+              ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+          );
+        }}
+      />
 
       {/* Political & Social Profiles Management Section for Leader */}
       <PoliticalSocialManagement user={user} />
 
       {/* Neighborhood Activities Book Management Section for Leader */}
-      <NeighborhoodActivityManagement user={user} />
+      <NeighborhoodActivityManagement
+        user={user}
+        creationSeed={activityCreationSeed}
+        onCreationSeedConsumed={() => setActivityCreationSeed(null)}
+      />
 
       {/* Pending Accounts Card */}
       <Card>

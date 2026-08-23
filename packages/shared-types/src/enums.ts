@@ -90,6 +90,28 @@ export enum ActivityRating {
   AVERAGE = 'average',
 }
 
+export enum ExportDataset {
+  RESIDENTS = 'residents',
+  POLITICAL_SOCIAL = 'political_social',
+  ACTIVITIES = 'activities',
+  PETITIONS = 'petitions',
+}
+
+export enum ExportFormat {
+  CSV = 'csv',
+  XLSX = 'xlsx',
+}
+
+export const HIGHEST_EDUCATION_RANK: HighestEducation[] = [
+  HighestEducation.LOWER_SECONDARY,
+  HighestEducation.UPPER_SECONDARY,
+  HighestEducation.VOCATIONAL,
+  HighestEducation.COLLEGE,
+  HighestEducation.BACHELOR,
+  HighestEducation.MASTER,
+  HighestEducation.DOCTORATE,
+];
+
 export enum ErrorCode {
   RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
   INVALID_OTP = 'INVALID_OTP',
@@ -141,4 +163,8 @@ export enum ErrorCode {
   INVALID_ACTIVITY_DATE = 'INVALID_ACTIVITY_DATE',
   INVALID_PARTICIPANT = 'INVALID_PARTICIPANT',
   DUPLICATE_PARTICIPANT = 'DUPLICATE_PARTICIPANT',
+  EXPORT_LIMIT_EXCEEDED = 'EXPORT_LIMIT_EXCEEDED',
+  EXTRACTION_LIMIT_EXCEEDED = 'EXTRACTION_LIMIT_EXCEEDED',
+  INVALID_EXPORT_DATASET = 'INVALID_EXPORT_DATASET',
+  INVALID_EXPORT_FORMAT = 'INVALID_EXPORT_FORMAT',
 }

@@ -16,7 +16,10 @@ import {
 } from '@quanlykhupho/ui';
 import {
   CreateResidentProfileDto,
+  ExportDataset,
   Gender,
+  HighestEducation,
+  PartyStatus,
   ResidentProfileDetailDto,
   ResidentProfileDto,
   UpdateResidentProfileDto,
@@ -25,15 +28,19 @@ import {
 } from '@quanlykhupho/shared-types';
 import { useNeighborhoods } from '../../hooks/use-neighborhoods';
 import {
+  extractResidentsApi,
   useCreateResidentProfile,
   useResidentProfile,
   useResidentProfiles,
   useUpdateResidentProfile,
 } from '../../hooks/use-resident-profiles';
 import { getErrorMessage } from '../../lib/api-client';
+import { ExportModal, FilterSummaryItem } from '../exports/export-modal';
+import type { ActivityCreationSeed } from '../neighborhood-activities/neighborhood-activity-management';
 
 interface ResidentProfileManagementProps {
   user: UserDto;
+  onSeedActivity?: (seed: ActivityCreationSeed) => void;
 }
 
 const GENDER_LABELS: Record<Gender, string> = {
@@ -54,8 +61,28 @@ const RELATIONSHIP_OPTIONS = [
   { value: 'Khác', label: 'Khác' },
 ];
 
+const PARTY_STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'Tất cả tình trạng Đảng' },
+  { value: PartyStatus.PARTY_MEMBER, label: 'Đảng viên' },
+  { value: PartyStatus.UNDER_CONSIDERATION, label: 'Đang xem xét' },
+  { value: PartyStatus.NOT_MEMBER, label: 'Chưa vào Đảng' },
+  { value: 'not_updated', label: 'Chưa cập nhật hồ sơ' },
+];
+
+const EDUCATION_FILTER_OPTIONS = [
+  { value: '', label: 'Tất cả trình độ' },
+  { value: HighestEducation.LOWER_SECONDARY, label: 'Từ THCS trở lên' },
+  { value: HighestEducation.UPPER_SECONDARY, label: 'Từ THPT trở lên' },
+  { value: HighestEducation.VOCATIONAL, label: 'Từ Trung cấp trở lên' },
+  { value: HighestEducation.COLLEGE, label: 'Từ Cao đẳng trở lên' },
+  { value: HighestEducation.BACHELOR, label: 'Từ Đại học trở lên' },
+  { value: HighestEducation.MASTER, label: 'Từ Thạc sĩ trở lên' },
+  { value: HighestEducation.DOCTORATE, label: 'Tiến sĩ' },
+];
+
 export function ResidentProfileManagement({
   user,
+  onSeedActivity,
 }: ResidentProfileManagementProps) {
   const isOfficer = user.role === UserRole.OFFICER;
 
@@ -65,6 +92,21 @@ export function ResidentProfileManagement({
   const [selectedGender, setSelectedGender] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeSearch, setActiveSearch] = useState<string>('');
+
+  // Advanced filter states (FR-24)
+  const [ageFrom, setAgeFrom] = useState<string>('');
+  const [ageTo, setAgeTo] = useState<string>('');
+  const [selectedRelationship, setSelectedRelationship] = useState<string>('');
+  const [selectedPartyStatus, setSelectedPartyStatus] = useState<string>('');
+  const [selectedMinEducation, setSelectedMinEducation] = useState<string>('');
+  const [occupationQuery, setOccupationQuery] = useState<string>('');
+  const [activeOccupation, setActiveOccupation] = useState<string>('');
+  const [wardQuery, setWardQuery] = useState<string>('');
+  const [activeWard, setActiveWard] = useState<string>('');
+
+  const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState<boolean>(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [isExtractingForActivity, setIsExtractingForActivity] = useState<boolean>(false);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Queries
@@ -72,6 +114,9 @@ export function ResidentProfileManagement({
   const effectiveNeighborhoodId = isOfficer
     ? selectedNeighborhoodId || undefined
     : user.neighborhoodId || undefined;
+
+  const parsedAgeFrom = ageFrom !== '' ? Number(ageFrom) : undefined;
+  const parsedAgeTo = ageTo !== '' ? Number(ageTo) : undefined;
 
   const {
     data: profilesData,
@@ -83,6 +128,14 @@ export function ResidentProfileManagement({
     neighborhoodId: effectiveNeighborhoodId,
     gender: (selectedGender as Gender) || undefined,
     search: activeSearch || undefined,
+    ageFrom: parsedAgeFrom,
+    ageTo: parsedAgeTo,
+    relationshipToHead: selectedRelationship || undefined,
+    partyStatus:
+      (selectedPartyStatus as PartyStatus | 'not_updated') || undefined,
+    minEducation: (selectedMinEducation as HighestEducation) || undefined,
+    occupation: activeOccupation || undefined,
+    ward: activeWard || undefined,
     page: currentPage,
     limit: 10,
   });
@@ -122,7 +175,7 @@ export function ResidentProfileManagement({
 
   // Toast feedback state
   const [toastFeedback, setToastFeedback] = useState<{
-    variant: 'success' | 'error';
+    variant: 'success' | 'error' | 'warning' | 'info';
     message: string;
   } | null>(null);
 
@@ -136,6 +189,8 @@ export function ResidentProfileManagement({
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setActiveSearch(searchQuery.trim());
+    setActiveOccupation(occupationQuery.trim());
+    setActiveWard(wardQuery.trim());
     setCurrentPage(1);
   };
 
@@ -144,7 +199,136 @@ export function ResidentProfileManagement({
     setActiveSearch('');
     setSelectedGender('');
     if (isOfficer) setSelectedNeighborhoodId('');
+    setAgeFrom('');
+    setAgeTo('');
+    setSelectedRelationship('');
+    setSelectedPartyStatus('');
+    setSelectedMinEducation('');
+    setOccupationQuery('');
+    setActiveOccupation('');
+    setWardQuery('');
+    setActiveWard('');
     setCurrentPage(1);
+  };
+
+  const activeAdvancedCount = [
+    ageFrom !== '',
+    ageTo !== '',
+    selectedRelationship,
+    selectedPartyStatus,
+    selectedMinEducation,
+    activeOccupation,
+    activeWard,
+  ].filter(Boolean).length;
+
+  const handleExtractToActivity = async () => {
+    if (isOfficer && !selectedNeighborhoodId) {
+      setToastFeedback({
+        variant: 'error',
+        message:
+          'Vui lòng chọn một khu phố cụ thể trên bộ lọc trước khi chuyển danh sách sang Sổ hoạt động.',
+      });
+      return;
+    }
+
+    setIsExtractingForActivity(true);
+    try {
+      const res = await extractResidentsApi({
+        neighborhoodId: effectiveNeighborhoodId,
+        gender: (selectedGender as Gender) || undefined,
+        search: activeSearch || undefined,
+        ageFrom: parsedAgeFrom,
+        ageTo: parsedAgeTo,
+        relationshipToHead: selectedRelationship || undefined,
+        partyStatus:
+          (selectedPartyStatus as PartyStatus | 'not_updated') || undefined,
+        minEducation: (selectedMinEducation as HighestEducation) || undefined,
+        occupation: activeOccupation || undefined,
+        ward: activeWard || undefined,
+      });
+
+      if (res.items.length === 0) {
+        setToastFeedback({
+          variant: 'warning',
+          message:
+            'Không có nhân khẩu nào phù hợp với bộ lọc hiện tại để tạo hoạt động.',
+        });
+        setIsExtractingForActivity(false);
+        return;
+      }
+
+      if (onSeedActivity) {
+        onSeedActivity({
+          targetNeighborhoodId:
+            effectiveNeighborhoodId || user.neighborhoodId || '',
+          customResidentIds: res.items.map((i) => i.id),
+          extractedResidents: res.items,
+        });
+        setToastFeedback({
+          variant: 'success',
+          message: `Đã trích xuất ${res.total} nhân khẩu thành công. Đang mở giao diện tạo hoạt động...`,
+        });
+      } else {
+        setToastFeedback({
+          variant: 'info',
+          message: `Đã trích xuất thành công ${res.total} nhân khẩu.`,
+        });
+      }
+    } catch (err: unknown) {
+      setToastFeedback({
+        variant: 'error',
+        message: getErrorMessage(err),
+      });
+    } finally {
+      setIsExtractingForActivity(false);
+    }
+  };
+
+  const buildFilterSummary = (): FilterSummaryItem[] => {
+    const summary: FilterSummaryItem[] = [];
+    if (isOfficer && selectedNeighborhoodId) {
+      const n = neighborhoods.find((item) => item.id === selectedNeighborhoodId);
+      if (n) summary.push({ label: 'Khu phố', value: n.name });
+    }
+    if (activeSearch) {
+      summary.push({ label: 'Từ khóa', value: activeSearch });
+    }
+    if (selectedGender) {
+      summary.push({
+        label: 'Giới tính',
+        value: GENDER_LABELS[selectedGender as Gender] || selectedGender,
+      });
+    }
+    if (ageFrom !== '' || ageTo !== '') {
+      const fromStr = ageFrom !== '' ? `Từ ${ageFrom}` : '';
+      const toStr = ageTo !== '' ? `Đến ${ageTo}` : '';
+      summary.push({
+        label: 'Độ tuổi',
+        value: `${fromStr} ${toStr}`.trim() + ' tuổi',
+      });
+    }
+    if (selectedRelationship) {
+      summary.push({ label: 'Quan hệ chủ hộ', value: selectedRelationship });
+    }
+    if (selectedPartyStatus) {
+      const opt = PARTY_STATUS_FILTER_OPTIONS.find(
+        (o) => o.value === selectedPartyStatus,
+      );
+      if (opt) summary.push({ label: 'Tình trạng Đảng', value: opt.label });
+    }
+    if (selectedMinEducation) {
+      const opt = EDUCATION_FILTER_OPTIONS.find(
+        (o) => o.value === selectedMinEducation,
+      );
+      if (opt) summary.push({ label: 'Học vấn tối thiểu', value: opt.label });
+    }
+    if (activeOccupation) {
+      summary.push({ label: 'Nghề nghiệp', value: activeOccupation });
+    }
+    if (activeWard) {
+      summary.push({ label: 'Phường/Xã', value: activeWard });
+    }
+    return summary;
   };
 
   const handleOpenCreateModal = () => {
@@ -351,8 +535,8 @@ export function ResidentProfileManagement({
               </div>
               <CardDescription>
                 {isOfficer
-                  ? 'Tra cứu, lập hồ sơ và quản lý nhân khẩu trên toàn địa bàn phường'
-                  : `Danh sách và quản lý hồ sơ nhân khẩu thuộc ${user.neighborhood?.name || 'Khu phố'}`}
+                  ? 'Tra cứu, lập hồ sơ, lọc nâng cao và trích xuất nhân khẩu toàn phường'
+                  : `Danh sách, tra cứu và trích xuất nhân khẩu thuộc ${user.neighborhood?.name || 'Khu phố'}`}
               </CardDescription>
             </div>
 
@@ -368,6 +552,25 @@ export function ResidentProfileManagement({
               <Button
                 variant="outline"
                 size="md"
+                onClick={handleExtractToActivity}
+                isLoading={isExtractingForActivity}
+                className="text-xs sm:text-sm font-medium border-blue-200 bg-blue-50/50 text-blue-700 hover:bg-blue-100"
+                title="Trích xuất toàn bộ nhân khẩu khớp bộ lọc để tạo hoạt động khu phố"
+              >
+                📝 Tạo hoạt động từ danh sách
+              </Button>
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => setIsExportModalOpen(true)}
+                className="text-xs sm:text-sm border-slate-300 hover:bg-slate-50"
+                title="Xuất danh sách nhân khẩu ra tệp CSV hoặc Excel"
+              >
+                📥 Xuất dữ liệu
+              </Button>
+              <Button
+                variant="outline"
+                size="md"
                 onClick={() => refetch()}
                 className="text-xs sm:text-sm"
               >
@@ -377,68 +580,270 @@ export function ResidentProfileManagement({
           </div>
 
           {/* Search and Filters */}
-          <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <form
-              onSubmit={handleSearchSubmit}
-              className="flex flex-1 items-center gap-2 max-w-lg"
-            >
-              <Input
-                placeholder="Tìm theo họ tên, mã hộ khẩu, số CCCD (12 số)..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="text-xs"
-              />
-              <Button type="submit" variant="secondary" size="md" className="text-xs shrink-0">
-                Tìm kiếm
-              </Button>
-            </form>
+          <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <form
+                onSubmit={handleSearchSubmit}
+                className="flex flex-1 items-center gap-2 max-w-lg"
+              >
+                <Input
+                  placeholder="Tìm theo họ tên, mã hộ khẩu, số CCCD (12 số)..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="text-xs"
+                />
+                <Button type="submit" variant="secondary" size="md" className="text-xs shrink-0">
+                  Tìm kiếm
+                </Button>
+              </form>
 
-            <div className="flex flex-wrap items-center gap-2">
-              {isOfficer && (
+              <div className="flex flex-wrap items-center gap-2">
+                {isOfficer && (
+                  <select
+                    aria-label="Lọc theo khu phố"
+                    value={selectedNeighborhoodId}
+                    onChange={(e) => {
+                      setSelectedNeighborhoodId(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm focus:border-blue-600 focus:outline-none"
+                  >
+                    <option value="">Tất cả khu phố</option>
+                    {neighborhoods.map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
                 <select
-                  aria-label="Lọc theo khu phố"
-                  value={selectedNeighborhoodId}
+                  aria-label="Lọc theo giới tính"
+                  value={selectedGender}
                   onChange={(e) => {
-                    setSelectedNeighborhoodId(e.target.value);
+                    setSelectedGender(e.target.value);
                     setCurrentPage(1);
                   }}
                   className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm focus:border-blue-600 focus:outline-none"
                 >
-                  <option value="">Tất cả khu phố</option>
-                  {neighborhoods.map((n) => (
-                    <option key={n.id} value={n.id}>
-                      {n.name}
-                    </option>
-                  ))}
+                  <option value="">Tất cả giới tính</option>
+                  <option value={Gender.MALE}>Nam</option>
+                  <option value={Gender.FEMALE}>Nữ</option>
+                  <option value={Gender.OTHER}>Khác</option>
                 </select>
-              )}
 
-              <select
-                aria-label="Lọc theo giới tính"
-                value={selectedGender}
-                onChange={(e) => {
-                  setSelectedGender(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm focus:border-blue-600 focus:outline-none"
-              >
-                <option value="">Tất cả giới tính</option>
-                <option value={Gender.MALE}>Nam</option>
-                <option value={Gender.FEMALE}>Nữ</option>
-                <option value={Gender.OTHER}>Khác</option>
-              </select>
-
-              {(activeSearch || selectedGender || selectedNeighborhoodId) && (
                 <Button
-                  variant="outline"
+                  variant={isAdvancedFiltersOpen ? 'primary' : 'outline'}
                   size="sm"
-                  onClick={handleResetFilters}
-                  className="text-xs text-slate-500 hover:text-slate-700"
+                  onClick={() => setIsAdvancedFiltersOpen((prev) => !prev)}
+                  className="text-xs shrink-0"
                 >
-                  Xóa lọc
+                  🔍 Bộ lọc nâng cao
+                  {activeAdvancedCount > 0 && (
+                    <span className="ml-1.5 rounded-full bg-white/20 px-1.5 py-0.2 text-[10px] font-bold">
+                      {activeAdvancedCount}
+                    </span>
+                  )}
                 </Button>
-              )}
+
+                {(activeSearch || selectedGender || selectedNeighborhoodId || activeAdvancedCount > 0) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResetFilters}
+                    className="text-xs text-slate-500 hover:text-slate-700 shrink-0"
+                  >
+                    Xóa lọc
+                  </Button>
+                )}
+              </div>
             </div>
+
+            {/* Collapsible Advanced Filters Section (FR-24) */}
+            {isAdvancedFiltersOpen && (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/75 p-4 space-y-4 transition-all">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
+                  <h5 className="font-bold text-xs text-slate-900">
+                    Bộ lọc nâng cao nhân khẩu (kết hợp đồng thời - AND)
+                  </h5>
+                  <button
+                    type="button"
+                    onClick={() => setIsAdvancedFiltersOpen(false)}
+                    className="text-xs text-slate-400 hover:text-slate-600"
+                  >
+                    Đóng ✕
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {/* Age Range */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Độ tuổi (từ - đến)
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="0"
+                        max="150"
+                        placeholder="Từ"
+                        value={ageFrom}
+                        onChange={(e) => {
+                          setAgeFrom(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-blue-600 focus:outline-none"
+                      />
+                      <span className="text-slate-400">-</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="150"
+                        placeholder="Đến"
+                        value={ageTo}
+                        onChange={(e) => {
+                          setAgeTo(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-blue-600 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Relationship to Head */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Quan hệ với chủ hộ
+                    </label>
+                    <select
+                      value={selectedRelationship}
+                      onChange={(e) => {
+                        setSelectedRelationship(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-blue-600 focus:outline-none"
+                    >
+                      <option value="">Tất cả quan hệ</option>
+                      {RELATIONSHIP_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Party Status */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Tình trạng Đảng
+                    </label>
+                    <select
+                      value={selectedPartyStatus}
+                      onChange={(e) => {
+                        setSelectedPartyStatus(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-blue-600 focus:outline-none"
+                    >
+                      {PARTY_STATUS_FILTER_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Minimum Education */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Trình độ học vấn tối thiểu
+                    </label>
+                    <select
+                      value={selectedMinEducation}
+                      onChange={(e) => {
+                        setSelectedMinEducation(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-blue-600 focus:outline-none"
+                    >
+                      {EDUCATION_FILTER_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Occupation */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Nghề nghiệp
+                    </label>
+                    <div className="flex gap-1.5">
+                      <input
+                        placeholder="VD: Kỹ sư, Bác sĩ..."
+                        value={occupationQuery}
+                        onChange={(e) => setOccupationQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            setActiveOccupation(occupationQuery.trim());
+                            setCurrentPage(1);
+                          }
+                        }}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-blue-600 focus:outline-none"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setActiveOccupation(occupationQuery.trim());
+                          setCurrentPage(1);
+                        }}
+                        className="text-xs shrink-0"
+                      >
+                        Lọc
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Ward */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Phường/Xã
+                    </label>
+                    <div className="flex gap-1.5">
+                      <input
+                        placeholder="VD: Phường Bến Nghé..."
+                        value={wardQuery}
+                        onChange={(e) => setWardQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            setActiveWard(wardQuery.trim());
+                            setCurrentPage(1);
+                          }
+                        }}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-blue-600 focus:outline-none"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setActiveWard(wardQuery.trim());
+                          setCurrentPage(1);
+                        }}
+                        className="text-xs shrink-0"
+                      >
+                        Lọc
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </CardHeader>
 
@@ -1228,6 +1633,29 @@ export function ResidentProfileManagement({
           )
         ) : null}
       </Modal>
+
+      {/* Export Modal (FR-25) */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        dataset={ExportDataset.RESIDENTS}
+        title="Xuất Danh sách Nhân khẩu"
+        description="Xuất danh sách nhân khẩu theo kết quả bộ lọc hiện tại ra định dạng CSV hoặc Microsoft Excel."
+        filters={{
+          neighborhoodId: effectiveNeighborhoodId,
+          gender: (selectedGender as Gender) || undefined,
+          search: activeSearch || undefined,
+          ageFrom: parsedAgeFrom,
+          ageTo: parsedAgeTo,
+          relationshipToHead: selectedRelationship || undefined,
+          partyStatus:
+            (selectedPartyStatus as PartyStatus | 'not_updated') || undefined,
+          minEducation: (selectedMinEducation as HighestEducation) || undefined,
+          occupation: activeOccupation || undefined,
+          ward: activeWard || undefined,
+        }}
+        filterSummary={buildFilterSummary()}
+      />
     </div>
   );
 }

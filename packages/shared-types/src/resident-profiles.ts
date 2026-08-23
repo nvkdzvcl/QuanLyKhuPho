@@ -1,4 +1,4 @@
-import { Gender } from './enums';
+import { Gender, HighestEducation, PartyStatus } from './enums';
 import { NeighborhoodDto } from './user';
 
 export interface HouseholdDto {
@@ -82,6 +82,13 @@ export interface ResidentProfileFilterQueryDto {
   search?: string;
   neighborhoodId?: string;
   gender?: Gender;
+  ageFrom?: number;
+  ageTo?: number;
+  relationshipToHead?: string;
+  partyStatus?: PartyStatus | 'not_updated';
+  minEducation?: HighestEducation;
+  occupation?: string;
+  ward?: string;
   page?: number;
   limit?: number;
 }
@@ -92,4 +99,14 @@ export interface ResidentProfileListResponseDto {
   page: number;
   limit: number;
   totalPages: number;
+}
+
+export interface ExtractedResidentItemDto {
+  id: string;
+  fullName: string;
+}
+
+export interface ResidentExtractionResponseDto {
+  items: ExtractedResidentItemDto[];
+  total: number;
 }

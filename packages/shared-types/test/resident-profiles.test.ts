@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   ErrorCode,
   Gender,
+  HighestEducation,
+  PartyStatus,
   ResidentProfileDto,
   ResidentProfileDetailDto,
   CreateResidentProfileDto,
@@ -83,5 +85,41 @@ describe('Shared Resident Profile Types and Enums', () => {
     expect(createDto.fullName).toBe('Trần Thị B');
     expect(createDto.citizenId).toBe('079199000123');
     expect(createDto.gender).toBe(Gender.FEMALE);
+  });
+
+  it('should support advanced filter criteria in ResidentProfileFilterQueryDto', () => {
+    const filter: import('../src').ResidentProfileFilterQueryDto = {
+      search: 'Nguyễn',
+      neighborhoodId: 'neigh-1',
+      gender: Gender.MALE,
+      ageFrom: 18,
+      ageTo: 60,
+      relationshipToHead: 'Chủ hộ',
+      partyStatus: PartyStatus.PARTY_MEMBER,
+      minEducation: HighestEducation.BACHELOR,
+      occupation: 'Kỹ sư',
+      ward: 'Bến Nghé',
+      page: 1,
+      limit: 20,
+    };
+
+    expect(filter.ageFrom).toBe(18);
+    expect(filter.ageTo).toBe(60);
+    expect(filter.partyStatus).toBe('party_member');
+    expect(filter.minEducation).toBe('bachelor');
+  });
+
+  it('should conform to ResidentExtractionResponseDto contract', () => {
+    const extraction: import('../src').ResidentExtractionResponseDto = {
+      items: [
+        { id: 'res-1', fullName: 'Nguyễn Văn A' },
+        { id: 'res-2', fullName: 'Trần Thị B' },
+      ],
+      total: 2,
+    };
+
+    expect(extraction.items).toHaveLength(2);
+    expect(extraction.total).toBe(2);
+    expect(extraction.items[0]?.fullName).toBe('Nguyễn Văn A');
   });
 });

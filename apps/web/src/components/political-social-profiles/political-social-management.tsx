@@ -16,6 +16,7 @@ import {
 } from '@quanlykhupho/ui';
 import {
   Gender,
+  ExportDataset,
   HighestEducation,
   PartyStatus,
   ResidentPoliticalSocialItemDto,
@@ -29,6 +30,7 @@ import {
   useUpsertPoliticalSocialProfile,
 } from '../../hooks/use-political-social-profiles';
 import { getErrorMessage } from '../../lib/api-client';
+import { ExportModal } from '../exports/export-modal';
 
 interface PoliticalSocialManagementProps {
   user: UserDto;
@@ -70,6 +72,7 @@ export function PoliticalSocialManagement({ user }: PoliticalSocialManagementPro
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeSearch, setActiveSearch] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
 
   // Queries
   const { data: neighborhoods = [] } = useNeighborhoods();
@@ -280,6 +283,14 @@ export function PoliticalSocialManagement({ user }: PoliticalSocialManagementPro
             </div>
 
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => setIsExportModalOpen(true)}
+                className="text-xs sm:text-sm"
+              >
+                📥 Xuất dữ liệu
+              </Button>
               <Button
                 variant="outline"
                 size="md"
@@ -831,6 +842,26 @@ export function PoliticalSocialManagement({ user }: PoliticalSocialManagementPro
           </div>
         </form>
       </Modal>
+
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        dataset={ExportDataset.POLITICAL_SOCIAL}
+        title="Xuất thông tin Chính trị - Xã hội"
+        description="Xuất toàn bộ hồ sơ chính trị - xã hội khớp bộ lọc hiện tại."
+        filters={{
+          neighborhoodId: effectiveNeighborhoodId,
+          partyStatus:
+            (selectedPartyStatus as PartyStatus | 'not_updated') || undefined,
+          search: activeSearch || undefined,
+        }}
+        filterSummary={[
+          ...(activeSearch ? [{ label: 'Từ khóa', value: activeSearch }] : []),
+          ...(selectedPartyStatus
+            ? [{ label: 'Tình trạng Đảng', value: selectedPartyStatus }]
+            : []),
+        ]}
+      />
     </div>
   );
 }

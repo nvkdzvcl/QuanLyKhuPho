@@ -2,12 +2,32 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ApiResponseEnvelope,
   CreateResidentProfileDto,
+  ResidentExtractionResponseDto,
   ResidentProfileDetailDto,
   ResidentProfileFilterQueryDto,
   ResidentProfileListResponseDto,
   UpdateResidentProfileDto,
 } from '@quanlykhupho/shared-types';
 import { apiClient } from '../lib/api-client';
+
+function buildResidentFilterParams(
+  query: ResidentProfileFilterQueryDto = {},
+): URLSearchParams {
+  const params = new URLSearchParams();
+  if (query.search) params.append('search', query.search);
+  if (query.neighborhoodId) params.append('neighborhoodId', query.neighborhoodId);
+  if (query.gender) params.append('gender', query.gender);
+  if (query.ageFrom !== undefined) params.append('ageFrom', String(query.ageFrom));
+  if (query.ageTo !== undefined) params.append('ageTo', String(query.ageTo));
+  if (query.relationshipToHead) params.append('relationshipToHead', query.relationshipToHead);
+  if (query.partyStatus) params.append('partyStatus', query.partyStatus);
+  if (query.minEducation) params.append('minEducation', query.minEducation);
+  if (query.occupation) params.append('occupation', query.occupation);
+  if (query.ward) params.append('ward', query.ward);
+  if (query.page) params.append('page', String(query.page));
+  if (query.limit) params.append('limit', String(query.limit));
+  return params;
+}
 
 export function useResidentProfiles(
   query: ResidentProfileFilterQueryDto = {},
@@ -16,19 +36,34 @@ export function useResidentProfiles(
   return useQuery({
     queryKey: ['resident-profiles', 'list', query],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (query.search) params.append('search', query.search);
-      if (query.neighborhoodId) params.append('neighborhoodId', query.neighborhoodId);
-      if (query.gender) params.append('gender', query.gender);
-      if (query.page) params.append('page', String(query.page));
-      if (query.limit) params.append('limit', String(query.limit));
-
+      const params = buildResidentFilterParams(query);
       const res = await apiClient.get<ApiResponseEnvelope<ResidentProfileListResponseDto>>(
         `/resident-profiles?${params.toString()}`,
       );
       return res.data.data;
     },
     enabled: options.enabled ?? true,
+  });
+}
+
+export async function extractResidentsApi(
+  query: ResidentProfileFilterQueryDto = {},
+): Promise<ResidentExtractionResponseDto> {
+  const params = buildResidentFilterParams(query);
+  const res = await apiClient.get<ApiResponseEnvelope<ResidentExtractionResponseDto>>(
+    `/resident-profiles/extract?${params.toString()}`,
+  );
+  return res.data.data;
+}
+
+export function useExtractResidents(
+  query: ResidentProfileFilterQueryDto = {},
+  options: { enabled?: boolean } = {},
+) {
+  return useQuery({
+    queryKey: ['resident-profiles', 'extract', query],
+    queryFn: () => extractResidentsApi(query),
+    enabled: options.enabled ?? false,
   });
 }
 
