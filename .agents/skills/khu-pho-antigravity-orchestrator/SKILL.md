@@ -34,16 +34,21 @@ skill is active.
    predate the task separately from failures caused by the change.
 4. Make a compact plan containing `OBJECTIVE`, `SCOPE`, `NON_GOALS`,
    `INVARIANTS`, `LIKELY_FILES`, `ACCEPTANCE_CRITERIA`, and
-   `CODEX_VERIFICATION_COMMANDS`.
+   `CODEX_VERIFICATION_COMMANDS`. For `PHASE`, also define dependency-ordered
+   `EXECUTION_SLICES`; keep the phase scope intact but do not ask Flash to
+   implement the entire phase in one invocation.
 5. For `DELEGATE` or `PHASE`, read
    [references/delegation-playbook.md](references/delegation-playbook.md), create
    a repository-specific task packet under `.ai-work/`, and invoke the bundled
    runner. Require the exact model `gemini-3.7-flash-high`; do not substitute.
-6. After Antigravity finishes, inspect the actual changed files and diff. Read
+6. After each Antigravity slice, inspect its actual changed files and diff. Read
    [references/review-gates.md](references/review-gates.md) and apply only the
-   gates relevant to the changed area.
-7. Run focused verification independently. For `PHASE`, also run the complete
-   repository quality gate and a runtime smoke test when the application can run.
+   gates relevant to that slice. Update the compact phase checkpoint before
+   moving to the next slice.
+7. Run focused verification independently after each slice. For `PHASE`, defer
+   the complete repository quality gate and runtime smoke test until all slices,
+   reviews, and focused checks are stable. Run one successful final full gate;
+   if it fails, diagnose and repair with focused checks before rerunning it.
 8. If a concrete product defect remains, send one narrow repair prompt through
    the same runner. Review the repair delta. Do not retry or resume a session
    that failed on permissions; Codex completes verification itself. Report any
@@ -57,15 +62,26 @@ skill is active.
 
 - Reference repository paths instead of pasting whole requirements or source
   files into prompts.
+- For a large phase, keep one stable phase contract and send Flash a sequence of
+  coherent, dependency-ordered slice packets. Split by behavior and integration
+  boundary, not an arbitrary line or file quota. Each slice must fit one runner
+  invocation and leave a reviewable repository state.
 - Default to implementation-only delegation: Antigravity reads and writes
   repository files but does not run shell commands, tests, lint, builds, Git,
-  Docker, or package-manager commands. Codex runs focused verification once
-  after reviewing the diff.
+  Docker, or package-manager commands. Codex runs the smallest relevant focused
+  verification after reviewing each slice.
 - Review `git diff --stat`, changed paths, and affected contracts before opening
   broader code.
-- Run full suites at phase boundaries; use focused checks for ordinary features.
+- Do not run the full suite as a baseline or inside a repair loop. Run it only
+  as the final phase gate after focused checks pass.
 - Require a compact structured handoff. Do not request narrative progress logs.
 - Reuse the original task packet for repairs and add only the concrete finding.
+- Keep `.ai-work/current-phase.md` as the concise restart checkpoint for an
+  active phase. Store verified facts, slice status, changed paths, commands and
+  unresolved risks; never copy chat history, source files, or raw logs into it.
+- Keep tool output narrow: report command, result, and the first actionable
+  failure; refer to log paths instead of pasting long logs. During silent CLI
+  waits, send only a minimal elapsed-time/status heartbeat.
 - Use at most one CLI continuation, and only for a transient interrupted stream.
   Never continue after a permission denial because a resumed conversation can
   retain stale permission state.

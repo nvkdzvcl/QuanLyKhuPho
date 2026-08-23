@@ -4,7 +4,51 @@ Read this file only for `DELEGATE` or `PHASE` work.
 
 ## Prepare the task packet
 
-Create `.ai-work/current-task.md`. Keep it concise and use this structure:
+For `DELEGATE`, create `.ai-work/current-task.md` with the structure below.
+
+For `PHASE`, first create `.ai-work/phase-contract.md` containing the stable
+phase-level `OBJECTIVE`, `SCOPE`, `NON_GOALS`, `INVARIANTS`, final
+`ACCEPTANCE_CRITERIA`, final `CODEX_VERIFICATION_COMMANDS`, and an ordered
+`EXECUTION_SLICES` list. Preserve the user's complete phase scope, but divide
+execution into coherent slices based on dependencies and integration boundaries.
+Do not give Flash the whole phase in one invocation.
+
+Create `.ai-work/current-phase.md` as a compact restart checkpoint. Keep only:
+
+```text
+PHASE
+Current phase and source requirement paths.
+
+VERIFIED_BASELINE
+Commands and concise results established by Codex.
+
+SLICE_STATUS
+Pending, active, completed, and blocked slice identifiers.
+
+CHANGED_PATHS
+Paths changed so far, grouped by slice.
+
+VERIFICATION
+Focused checks already passed and the still-pending final gate.
+
+OPEN_FINDINGS
+Concrete unresolved defects or risks only.
+
+NEXT_ACTION
+One precise next action.
+```
+
+Update this checkpoint after every reviewed slice. It replaces replaying chat
+history when a task is compacted or a later Codex task continues the phase.
+
+For each phase slice, create `.ai-work/current-slice.md` using the packet
+structure below. Reference `.ai-work/phase-contract.md`, then include only that
+slice's outcome, dependencies, affected behavior, likely integration points,
+focused acceptance criteria, and focused verification commands. A slice must be
+small and cohesive enough to finish in one runner invocation, but do not use a
+rigid file-count or line-count quota.
+
+Keep each task or slice packet concise and use this structure:
 
 ```text
 OBJECTIVE
@@ -30,7 +74,9 @@ Observable conditions that must pass.
 
 CODEX_VERIFICATION_COMMANDS
 Exact commands discovered from manifests or CI. These are for Codex after the
-handoff, not for Antigravity's default implementation-only run.
+handoff, not for Antigravity's default implementation-only run. For a phase
+slice, include only focused checks; keep the full quality gate in the phase
+contract.
 
 IMPLEMENTATION_INSTRUCTIONS
 Implement using repository read/write tools only. Do not run shell commands,
@@ -67,6 +113,19 @@ From the repository root:
 .\.agents\skills\khu-pho-antigravity-orchestrator\scripts\invoke-antigravity.ps1 `
   -PromptPath .\.ai-work\current-task.md
 ```
+
+For a phase slice, pass `.\.ai-work\current-slice.md` instead. Complete this
+review-and-verify cycle before invoking the next slice:
+
+1. inspect `git diff --stat`, the slice's changed paths, and affected contracts;
+2. repair obvious Codex-review findings or send the one allowed narrow repair;
+3. run the smallest relevant lint, type, and test commands;
+4. update `.ai-work/current-phase.md`; and
+5. continue only when the slice leaves a stable base for its dependents.
+
+After the final slice, review the combined phase diff and run the complete
+quality gate once. If that gate fails, return to targeted diagnosis and focused
+checks; rerun the complete gate only after those checks pass.
 
 The runner pins `gemini-3.7-flash-high`, `accept-edits`, high effort, JSON outer
 output, and an eight-minute default timeout. It adds the implementation-only
