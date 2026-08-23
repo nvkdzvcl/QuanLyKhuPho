@@ -230,7 +230,18 @@ pnpm --filter @quanlykhupho/api worker
 
 # Khởi tạo Cán bộ phường đầu tiên (One-time Initial Officer Bootstrap)
 BOOTSTRAP_OFFICER_PHONE="0901234567" BOOTSTRAP_OFFICER_FULL_NAME="Nguyễn Văn Cán Bộ" pnpm --filter @quanlykhupho/api bootstrap:officer
+
+# Sao lưu cơ sở dữ liệu PostgreSQL (PostgreSQL Custom-Format Backup)
+pnpm db:backup
+
+# Kiểm tra an toàn tính toàn vẹn tệp sao lưu (Validation / Dry-run mặc định qua pg_restore --list)
+pnpm db:restore -- --file=backups/<ten_tep_sao_luu>.dump
+
+# Phục hồi cơ sở dữ liệu thực tế (BẮT BUỘC cả 2 cờ xác nhận an toàn để ghi đè)
+node scripts/postgres-restore.mjs --file=backups/<ten_tep_sao_luu>.dump --confirm-destructive --confirm-database=quanlykhupho
 ```
+
+Chi tiết quy trình sao lưu, lưu trữ off-host, mã hóa, xoay vòng lưu trữ và diễn tập phục hồi được quy định tại [Sổ tay Vận hành: Sao lưu & Phục hồi CSDL (Database Backup & Restore Runbook)](docs/operations/database-backup-restore.md).
 
 ---
 
@@ -248,10 +259,13 @@ pnpm typecheck
 # 3. Chạy Toàn bộ Bộ kiểm thử Tự động (Unit & E2E Tests via Vitest)
 pnpm test
 
-# 4. Build Toàn bộ Packages & Applications
+# 4. Kiểm tra Bộ kịch bản Vận hành & An toàn Sao lưu/Phục hồi (Operations Tests)
+pnpm test:ops
+
+# 5. Build Toàn bộ Packages & Applications
 pnpm build
 
-# 5. Kiểm tra tính hợp lệ của Docker Compose
+# 6. Kiểm tra tính hợp lệ của Docker Compose
 docker compose -f docker/docker-compose.yml config --quiet
 ```
 
