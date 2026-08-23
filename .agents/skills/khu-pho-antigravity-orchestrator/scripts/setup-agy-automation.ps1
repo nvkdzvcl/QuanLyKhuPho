@@ -31,13 +31,18 @@ $requiredRules = @(
     "command(pnpm lint)",
     "command(pnpm typecheck)",
     "command(pnpm test)",
+    "command(pnpm lint; pnpm typecheck; pnpm test)",
     "command(pnpm --filter @quanlykhupho/shared-types test && pnpm --filter @quanlykhupho/api test)",
     "command(pnpm --filter @quanlykhupho/shared-types test)",
     "command(pnpm --filter @quanlykhupho/api test)",
     "command(pnpm --filter .* test)",
     "command(pnpm build)",
+    "command(.*prisma validate)",
+    "command(pnpm --filter @quanlykhupho/api exec prisma validate)",
+    'command(\$env:DATABASE_URL=.*; pnpm --filter @quanlykhupho/api exec prisma validate)',
     "command(docker compose -f docker/docker-compose\.yml config)",
-    "command(docker compose -f docker/docker-compose.yml config)"
+    "command(docker compose -f docker/docker-compose.yml config)",
+    "command(docker compose -f docker/docker-compose.yml config --quiet)"
 )
 
 if (-not $Apply) {

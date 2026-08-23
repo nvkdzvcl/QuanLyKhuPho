@@ -114,19 +114,20 @@ pnpm dev
 
 ---
 
-## 🔒 Kiến trúc Bảo mật & Quy tắc Nghiệp vụ (Sprint 1A Security Architecture)
+## 🔒 Kiến trúc Bảo mật & Quy tắc Nghiệp vụ (Sprint 1A & 1B Security Architecture)
 
 1. **Mã hóa Số điện thoại & Blind Indexing**:
    - Số điện thoại được lưu trữ trong PostgreSQL dưới dạng mã hóa **AES-256-GCM** (sử dụng IV 12-byte ngẫu nhiên cho mỗi bản ghi).
    - Tra cứu số điện thoại qua trường `phone_hash` tạo bởi thuật toán **HMAC-SHA-256** với khóa bí mật riêng (`PHONE_HASH_KEY`), ngăn chặn rò rỉ dữ liệu khi bị dump cơ sở dữ liệu.
    - Số điện thoại chỉ hiển thị dưới định dạng che mặt nạ (`091***5678`) trên API DTO và giao diện người dùng.
 
-2. **Cơ chế Xác thực OTP Không Mật khẩu**:
+2. **Cơ chế Xác thực OTP Không Mật khẩu & Dọn dẹp Thất bại**:
    - Mã OTP gồm 6 chữ số, thời hạn hiệu lực chính xác **300 giây**.
    - Lưu trữ trong Redis dưới dạng hash HMAC-SHA-256 có pepper (`OTP_PEPPER`).
    - Giới hạn chống spam (Rate Limit): Tối đa **3 lần gửi trong 60 giây** theo từng số điện thoại (lần thứ 4 trả về `429 RATE_LIMIT_EXCEEDED`).
    - Khóa bảo vệ tự động: Nhập sai **3 lần liên tiếp** sẽ khóa quyền xác thực trong **15 phút** (`403 OTP_LOCKED`).
    - Xác thực đúng sẽ tự động xóa OTP hash và reset bộ đếm số lần thử sai.
+   - Nếu việc đẩy tin nhắn vào RabbitMQ thất bại, mã OTP hash vừa tạo sẽ được dọn dẹp ngay khỏi Redis để không tồn tại mã không gửi được nhưng vẫn giữ nguyên bộ đếm rate-limit.
 
 3. **Phiên Đăng nhập Tái tạo (7-Day Renewable Sessions)**:
    - Phiên làm việc được quản lý tập trung trên Redis với TTL **7 ngày** (604,800 giây).
@@ -134,9 +135,18 @@ pnpm dev
    - Phiên tự động được gia hạn (sliding window) mỗi khi người dùng thực hiện thao tác hợp lệ.
    - Trạng thái tài khoản trong DB được kiểm tra theo thời gian thực tại `AuthGuard`: nếu tài khoản bị khóa (`locked`) hoặc từ chối (`rejected`), toàn bộ phiên làm việc của tài khoản đó trên mọi thiết bị sẽ bị thu hồi ngay lập tức.
 
-4. **Bảo vệ Hàng đợi SMS & CSRF**:
-   - Lệnh gửi SMS đẩy vào RabbitMQ (`sms_commands`) được mã hóa toàn bộ payload bằng AES-256-GCM, không chứa số điện thoại hoặc mã OTP ở dạng rõ (plaintext).
-   - `CsrfGuard` yêu cầu `Origin` / `Referer` hợp lệ cho mọi request thay đổi dữ liệu dùng cookie phiên; origin localhost chỉ được thêm ngoài production.
+4. **Hàng đợi SMS Mã hóa, Worker Bền vững & Idempotency (Sprint 1B)**:
+   - Lệnh gửi SMS đẩy vào RabbitMQ (`sms_commands`) sử dụng khóa mã hóa riêng biệt `SMS_QUEUE_ENCRYPTION_KEY` (32 bytes) tách biệt hoàn toàn với khóa điện thoại hay OTP pepper.
+   - Envelope được định danh theo phiên bản (version 1), mang `commandId` ngẫu nhiên mờ đục, kiểu lệnh, thời gian tạo và payload mã hóa AES-256-GCM.
+   - Tuyệt đối không lưu plaintext số điện thoại, OTP, lý do hay nội dung thông báo trên queue hoặc log hệ thống.
+   - **SMS Worker**: Tiến trình worker riêng biệt (`pnpm --filter @quanlykhupho/api worker`) tiêu thụ hàng đợi `sms_commands`, kiểm tra Idempotency trên Redis (`sms:idempotent:<commandId>`), render mẫu tiếng Việt và gọi SMS Provider.
+   - **Webhook Provider**: Gửi HTTPS POST với `Authorization: Bearer <token>`, header `Idempotency-Key: <commandId>` và timeout có giới hạn.
+   - **Topology RabbitMQ**: Hàng đợi chính (`sms_commands`), hàng đợi thử lại trễ (`sms_commands_retry` với message TTL 5s và DLX) và hàng đợi Dead Letter (`sms_commands_dlq`). Lỗi tạm thời (5xx/429/timeout) được thử lại tối đa 3 lần; lỗi vĩnh viễn (4xx) hoặc tin độc (poison message) chuyển thẳng tới DLQ.
+
+5. **Khởi tạo Cán bộ Phường Đầu tiên (Bootstrap Officer Command)**:
+   - Lệnh one-time CLI: `pnpm --filter @quanlykhupho/api bootstrap:officer` (sử dụng biến `BOOTSTRAP_OFFICER_PHONE` và `BOOTSTRAP_OFFICER_FULL_NAME`).
+   - Chuẩn hóa số điện thoại Việt Nam, mã hóa và lưu vào DB với vai trò `officer`, trạng thái `active`.
+   - Đảm bảo an toàn đồng thời (serializable transaction), có tính idempotent khi chạy lại cùng danh tính, và từ chối tạo nếu đã có Cán bộ phường khác hoặc số điện thoại đã thuộc vai trò khác.
 
 ---
 
@@ -171,6 +181,18 @@ pnpm dev
 
 ---
 
+## 🛠️ Lệnh Vận hành & CLI (Operations & CLI Commands)
+
+```bash
+# Khởi chạy SMS Delivery Worker
+pnpm --filter @quanlykhupho/api worker
+
+# Khởi tạo Cán bộ phường đầu tiên (One-time Initial Officer Bootstrap)
+BOOTSTRAP_OFFICER_PHONE="0901234567" BOOTSTRAP_OFFICER_FULL_NAME="Nguyễn Văn Cán Bộ" pnpm --filter @quanlykhupho/api bootstrap:officer
+```
+
+---
+
 ## 🧪 Kiểm tra & Đảm bảo chất lượng (Verification & Quality Assurance)
 
 Chạy toàn bộ các quy trình kiểm thử và chất lượng mã nguồn:
@@ -189,7 +211,7 @@ pnpm test
 pnpm build
 
 # 5. Kiểm tra tính hợp lệ của Docker Compose
-docker compose -f docker/docker-compose.yml config
+docker compose -f docker/docker-compose.yml config --quiet
 ```
 
 ---
@@ -197,6 +219,6 @@ docker compose -f docker/docker-compose.yml config
 ## 🔒 Quy tắc & Bất biến Dự án (Invariants)
 
 - **Strict TypeScript**: Không sử dụng `any`, `@ts-ignore`, hoặc tắt linting tùy tiện.
-- **Bảo mật Thông tin**: Tuyệt đối không commit tệp `.env` thực tế hoặc lộ bí mật mã hóa.
+- **Bảo mật Thông tin**: Tuyệt đối không commit tệp `.env` thực tế hoặc lộ bí mật mã hóa. Không in số điện thoại hoặc mã OTP ở dạng rõ trong log.
 - **Tiêu chuẩn Ngôn ngữ**: Giao diện và thông báo người dùng sử dụng tiếng Việt chuẩn.
 - **Phân quyền Phía Server**: Đảm bảo phân quyền 3 cấp (`resident`, `leader`, `officer`) và cô lập khu phố (Leader chỉ quản lý khu phố được phân công) luôn được thực thi nghiêm ngặt tại Backend.

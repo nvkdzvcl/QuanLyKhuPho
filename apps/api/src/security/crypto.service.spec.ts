@@ -17,6 +17,9 @@ describe('CryptoService', () => {
         if (key === 'OTP_PEPPER') {
           return 'test_otp_pepper_secret_key_32_bytes!';
         }
+        if (key === 'SMS_QUEUE_ENCRYPTION_KEY') {
+          return '1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff';
+        }
         return undefined;
       },
     } as unknown as ConfigService;
@@ -83,8 +86,8 @@ describe('CryptoService', () => {
     });
   });
 
-  describe('Queue Payload Protection', () => {
-    it('should encrypt queue payload so plaintext phone/OTP is not exposed at rest', () => {
+  describe('Queue Payload Protection & Key Separation', () => {
+    it('should encrypt queue payload with dedicated key so sensitive data is not exposed at rest', () => {
       const sensitiveData = {
         type: 'OTP',
         phone: '+84912345678',
@@ -100,6 +103,38 @@ describe('CryptoService', () => {
       // Decryption recovers full data
       const decrypted = service.decryptQueuePayload<typeof sensitiveData>(encrypted);
       expect(decrypted).toEqual(sensitiveData);
+    });
+
+    it('should fail queue payload decryption if phone encryption key is attempted instead of queue key', () => {
+      const sensitiveData = { type: 'OTP', phone: '+84912345678' };
+      const queueEncrypted = service.encryptQueuePayload(sensitiveData);
+
+      // Decrypting queue ciphertext with phone decrypt method must fail (different keys)
+      expect(() => service.decrypt(queueEncrypted)).toThrow();
+    });
+
+    it('should fail queue payload decryption if tampered', () => {
+      const sensitiveData = { type: 'OTP', phone: '+84912345678' };
+      const encrypted = service.encryptQueuePayload(sensitiveData);
+      const parts = encrypted.split(':');
+      const tampered = `${parts[0]}:${parts[1]}:00${parts[2]?.slice(2)}`;
+
+      expect(() => service.decryptQueuePayload(tampered)).toThrow();
+    });
+
+    it('fails closed in production if SMS_QUEUE_ENCRYPTION_KEY is missing', () => {
+      const prodConfig = {
+        get: (key: string) => {
+          if (key === 'NODE_ENV') return 'production';
+          if (key === 'PHONE_ENCRYPTION_KEY') return 'a'.repeat(64);
+          if (key === 'PHONE_HASH_KEY') return 'b'.repeat(64);
+          if (key === 'OTP_PEPPER') return 'c'.repeat(32);
+          return undefined;
+        },
+      } as unknown as ConfigService;
+
+      const prodService = new CryptoService(prodConfig);
+      expect(() => prodService.onModuleInit()).toThrow('SMS_QUEUE_ENCRYPTION_KEY is required in production');
     });
   });
 });

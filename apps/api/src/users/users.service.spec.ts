@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConfigService } from '@nestjs/config';
 import { Account, Neighborhood, Prisma, Role, AccountStatus as DbAccountStatus } from '@prisma/client';
 import { AccountStatus, ErrorCode, UserDto, UserRole } from '@quanlykhupho/shared-types';
@@ -113,6 +113,9 @@ describe('UsersService', () => {
     ];
 
     prisma = {
+      $transaction: async <R>(
+        fn: (tx: Prisma.TransactionClient) => Promise<R>,
+      ): Promise<R> => fn(prisma as unknown as Prisma.TransactionClient),
       account: {
         findMany: async ({ where }: { where?: Prisma.AccountWhereInput }) => {
           return mockAccounts.filter((acc) => {
@@ -325,6 +328,169 @@ describe('UsersService', () => {
           officer,
         ),
       ).rejects.toMatchObject({ errorCode: ErrorCode.INVALID_STATUS_TRANSITION });
+    });
+  });
+
+  describe('Officer Bootstrap', () => {
+    it('should successfully bootstrap the initial active officer when none exists', async () => {
+      const officerPhone = '0901234567';
+      const fullName = 'Nguyễn Văn Cán Bộ Phường';
+
+      const result = await usersService.bootstrapOfficer(officerPhone, fullName);
+
+      expect(result.role).toBe(UserRole.OFFICER);
+      expect(result.status).toBe(AccountStatus.ACTIVE);
+      expect(result.fullName).toBe(fullName);
+      expect(result.maskedPhone).toBe('090***4567');
+      expect(result.isExisting).toBe(false);
+
+      // Verify stored account in database
+      const stored = mockAccounts.find((a) => a.id === result.id);
+      expect(stored).toBeDefined();
+      expect(stored?.role).toBe(Role.officer);
+      expect(stored?.status).toBe(DbAccountStatus.active);
+      expect(stored?.phoneEncrypted).toBeDefined();
+      expect(stored?.phoneHash).toBe(cryptoService.hashPhone('+84901234567'));
+    });
+
+    it('should be idempotent for the exact same officer identity on rerun', async () => {
+      const officerPhone = '0901234567';
+      const fullName = 'Nguyễn Văn Cán Bộ Phường';
+
+      const first = await usersService.bootstrapOfficer(officerPhone, fullName);
+      expect(first.isExisting).toBe(false);
+
+      const second = await usersService.bootstrapOfficer(officerPhone, fullName);
+      expect(second.isExisting).toBe(true);
+      expect(second.id).toBe(first.id);
+      expect(second.maskedPhone).toBe('090***4567');
+    });
+
+    it('should refuse to create a different first officer when an officer already exists', async () => {
+      // Create first officer
+      await usersService.bootstrapOfficer('0901234567', 'Cán Bộ Thứ Nhất');
+
+      // Attempt to bootstrap another officer with different phone
+      await expect(
+        usersService.bootstrapOfficer('0907654321', 'Cán Bộ Thứ Hai'),
+      ).rejects.toMatchObject({ errorCode: ErrorCode.FORBIDDEN });
+
+      // Attempt to bootstrap with same phone but different name
+      await expect(
+        usersService.bootstrapOfficer('0901234567', 'Cán Bộ Đổi Tên'),
+      ).rejects.toMatchObject({ errorCode: ErrorCode.FORBIDDEN });
+    });
+
+    it('should refuse to bootstrap officer if phone is already owned by another role (resident/leader)', async () => {
+      // Phone '0911111111' is already owned by res-1 (resident)
+      await expect(
+        usersService.bootstrapOfficer('0911111111', 'Cán Bộ Chiếm Số'),
+      ).rejects.toMatchObject({ errorCode: ErrorCode.PHONE_ALREADY_EXISTS });
+    });
+
+    it('should validate and reject missing or invalid inputs', async () => {
+      await expect(
+        usersService.bootstrapOfficer('', 'Cán Bộ'),
+      ).rejects.toMatchObject({ errorCode: ErrorCode.INVALID_PHONE_NUMBER });
+
+      await expect(
+        usersService.bootstrapOfficer('12345', 'Cán Bộ'),
+      ).rejects.toMatchObject({ errorCode: ErrorCode.INVALID_PHONE_NUMBER });
+
+      await expect(
+        usersService.bootstrapOfficer('0901234567', '   '),
+      ).rejects.toMatchObject({ errorCode: ErrorCode.VALIDATION_ERROR });
+    });
+
+    it('retries on Serializable conflict (P2034) and succeeds idempotently for same identity', async () => {
+      let attempts = 0;
+      const txSpy = vi
+        .spyOn(prisma, '$transaction')
+        .mockImplementation(
+          async <R>(
+            fn: (tx: Prisma.TransactionClient) => Promise<R>,
+          ): Promise<R> => {
+            attempts++;
+            if (attempts === 1) {
+              // Simulate first transaction losing race condition to a concurrent winner with same identity
+              const winner: MockAccount = {
+                id: 'officer-concurrent-1',
+                phoneEncrypted: cryptoService.encrypt('+84901234567'),
+                phoneHash: cryptoService.hashPhone('+84901234567'),
+                fullName: 'Nguyễn Văn Cán Bộ Phường',
+                role: Role.officer,
+                status: DbAccountStatus.active,
+                address: null,
+                neighborhoodId: null,
+                neighborhood: null,
+                rejectionReason: null,
+                lockReason: null,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              };
+              mockAccounts.push(winner);
+              const p2034Err = new Prisma.PrismaClientKnownRequestError(
+                'Transaction failed due to a write conflict or a deadlock. Please retry your transaction',
+                { code: 'P2034', clientVersion: '6.4.1' },
+              );
+              throw p2034Err;
+            }
+            return fn(prisma as unknown as Prisma.TransactionClient);
+          },
+        );
+
+      const result = await usersService.bootstrapOfficer('0901234567', 'Nguyễn Văn Cán Bộ Phường');
+      expect(attempts).toBe(2);
+      expect(result.isExisting).toBe(true);
+      expect(result.fullName).toBe('Nguyễn Văn Cán Bộ Phường');
+      expect(result.maskedPhone).toBe('090***4567');
+
+      txSpy.mockRestore();
+    });
+
+    it('retries on Serializable conflict and rejects when different identity won the race', async () => {
+      let attempts = 0;
+      const txSpy = vi
+        .spyOn(prisma, '$transaction')
+        .mockImplementation(
+          async <R>(
+            fn: (tx: Prisma.TransactionClient) => Promise<R>,
+          ): Promise<R> => {
+            attempts++;
+            if (attempts === 1) {
+              // Simulate first transaction losing race to a concurrent winner with DIFFERENT identity
+              const winner: MockAccount = {
+                id: 'officer-concurrent-2',
+                phoneEncrypted: cryptoService.encrypt('+84909999999'),
+                phoneHash: cryptoService.hashPhone('+84909999999'),
+                fullName: 'Cán Bộ Khác Đã Thắng',
+                role: Role.officer,
+                status: DbAccountStatus.active,
+                address: null,
+                neighborhoodId: null,
+                neighborhood: null,
+                rejectionReason: null,
+                lockReason: null,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              };
+              mockAccounts.push(winner);
+              const p2034Err = new Prisma.PrismaClientKnownRequestError(
+                'Transaction failed due to a write conflict',
+                { code: 'P2034', clientVersion: '6.4.1' },
+              );
+              throw p2034Err;
+            }
+            return fn(prisma as unknown as Prisma.TransactionClient);
+          },
+        );
+
+      await expect(
+        usersService.bootstrapOfficer('0901234567', 'Cán Bộ Đến Sau'),
+      ).rejects.toMatchObject({ errorCode: ErrorCode.FORBIDDEN });
+
+      expect(attempts).toBe(2);
+      txSpy.mockRestore();
     });
   });
 });

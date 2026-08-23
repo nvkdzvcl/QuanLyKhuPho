@@ -2,17 +2,35 @@ import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import * as amqp from 'amqplib';
 
+export const SMS_QUEUE_NAME = 'sms_commands';
+export const SMS_DLQ_NAME = 'sms_commands_dlq';
+export const SMS_RETRY_QUEUE_NAME = 'sms_commands_retry';
+export const SMS_DLX_NAME = 'sms_commands_dlx';
+export const SMS_RETRY_DELAY_MS = 5000;
+
+export interface PublishedMessageRecord {
+  queue: string;
+  content: string;
+  timestamp: Date;
+  headers?: Record<string, unknown>;
+}
+
 @Injectable()
 export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RabbitMQService.name);
   private connection: amqp.ChannelModel | null = null;
-  private channel: amqp.Channel | null = null;
+  private channel: amqp.ConfirmChannel | amqp.Channel | null = null;
   private isMemoryMode = false;
   private readonly isProduction: boolean;
-  public readonly publishedMessages: Array<{ queue: string; content: string; timestamp: Date }> = [];
+  private topologyAsserted = false;
+  public readonly publishedMessages: PublishedMessageRecord[] = [];
 
   constructor(private readonly configService: ConfigService) {
     this.isProduction = this.configService.get<string>('NODE_ENV') === 'production';
+  }
+
+  protected openConnection(url: string): Promise<amqp.ChannelModel> {
+    return amqp.connect(url);
   }
 
   async onModuleInit() {
@@ -26,10 +44,9 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    // Stage 1: Initial Connection Attempt
     try {
-      this.connection = await amqp.connect(rabbitmqUrl);
-      this.channel = await this.connection.createChannel();
-      this.logger.log('Connected to RabbitMQ server');
+      this.connection = await this.openConnection(rabbitmqUrl);
     } catch (err) {
       if (this.isProduction) {
         this.logger.error('RabbitMQ connection failed');
@@ -39,6 +56,36 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
       this.isMemoryMode = true;
       this.connection = null;
       this.channel = null;
+      return;
+    }
+
+    // Stage 2: Channel Creation & Topology Setup (connection established; failures must close and throw)
+    try {
+      this.channel = await this.connection.createConfirmChannel();
+      this.logger.log('Connected to RabbitMQ server with ConfirmChannel');
+      await this.assertTopology();
+    } catch (err) {
+      this.logger.error(
+        'RabbitMQ channel creation or topology assertion failed after connection established',
+        err,
+      );
+      try {
+        if (this.channel) await this.channel.close();
+      } catch {
+        // ignore
+      }
+      try {
+        if (this.connection) await this.connection.close();
+      } catch {
+        // ignore
+      }
+      this.channel = null;
+      this.connection = null;
+      this.isMemoryMode = false;
+      throw new Error(
+        'Failed to establish RabbitMQ confirm channel or topology after connection was opened',
+        { cause: err },
+      );
     }
   }
 
@@ -51,27 +98,104 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async publish(queueName: string, message: string): Promise<boolean> {
-    if (this.channel && !this.isMemoryMode) {
-      try {
-        await this.channel.assertQueue(queueName, { durable: true });
-        return this.channel.sendToQueue(queueName, Buffer.from(message), {
-          persistent: true,
-        });
-      } catch (err) {
-        if (this.isProduction) {
-          this.logger.error('RabbitMQ publish failed');
-          throw new Error('RabbitMQ publish failed', { cause: err });
-        }
-        this.logger.warn('RabbitMQ publish failed; using in-memory development fallback');
-      }
+  /**
+   * Asserts durable exchanges, queues, and bindings for reliable SMS processing.
+   */
+  async assertTopology(): Promise<void> {
+    if (this.isMemoryMode || this.topologyAsserted) {
+      return;
     }
 
-    this.publishedMessages.push({
-      queue: queueName,
-      content: message,
-      timestamp: new Date(),
+    if (!this.channel) {
+      throw new Error('RabbitMQ channel is not available to assert topology');
+    }
+
+    try {
+      // 1. Dead Letter Exchange (DLX)
+      await this.channel.assertExchange(SMS_DLX_NAME, 'direct', { durable: true });
+
+      // 2. Dead Letter Queue (DLQ)
+      await this.channel.assertQueue(SMS_DLQ_NAME, { durable: true });
+      await this.channel.bindQueue(SMS_DLQ_NAME, SMS_DLX_NAME, SMS_DLQ_NAME);
+
+      // 3. Retry Queue with message TTL that routes back to main queue
+      await this.channel.assertQueue(SMS_RETRY_QUEUE_NAME, {
+        durable: true,
+        arguments: {
+          'x-message-ttl': SMS_RETRY_DELAY_MS,
+          'x-dead-letter-exchange': '',
+          'x-dead-letter-routing-key': SMS_QUEUE_NAME,
+        },
+      });
+
+      // 4. Main queue with DLX routing on permanent reject / dead-letter
+      await this.channel.assertQueue(SMS_QUEUE_NAME, {
+        durable: true,
+        arguments: {
+          'x-dead-letter-exchange': SMS_DLX_NAME,
+          'x-dead-letter-routing-key': SMS_DLQ_NAME,
+        },
+      });
+
+      this.topologyAsserted = true;
+      this.logger.log('RabbitMQ topology asserted successfully (main, retry, dlq)');
+    } catch (err) {
+      this.logger.error('Failed to assert RabbitMQ topology', err);
+      throw new Error('Failed to assert RabbitMQ topology', { cause: err });
+    }
+  }
+
+  /**
+   * Publishes a persistent message with confirm channel support.
+   * Never falls back to memory if a real channel was configured.
+   */
+  async publish(
+    queueName: string,
+    message: string,
+    options?: amqp.Options.Publish,
+  ): Promise<boolean> {
+    if (this.isMemoryMode) {
+      this.publishedMessages.push({
+        queue: queueName,
+        content: message,
+        timestamp: new Date(),
+        headers: options?.headers as Record<string, unknown> | undefined,
+      });
+      return true;
+    }
+
+    if (!this.channel) {
+      throw new Error('RabbitMQ channel is not available for publishing');
+    }
+
+    await this.assertTopology();
+    const confirmChannel = this.channel as amqp.ConfirmChannel;
+
+    return new Promise<boolean>((resolve, reject) => {
+      confirmChannel.sendToQueue(
+        queueName,
+        Buffer.from(message),
+        { persistent: true, ...options },
+        (err) => {
+          if (err) {
+            this.logger.error('RabbitMQ confirm publish failed', err);
+            return reject(new Error('RabbitMQ confirm publish failed', { cause: err }));
+          }
+          resolve(true);
+        },
+      );
     });
-    return true;
+  }
+
+  getChannel(): amqp.ConfirmChannel | amqp.Channel | null {
+    return this.channel;
+  }
+
+  getConnection(): amqp.ChannelModel | null {
+    return this.connection;
+  }
+
+  isInMemory(): boolean {
+    return this.isMemoryMode;
   }
 }

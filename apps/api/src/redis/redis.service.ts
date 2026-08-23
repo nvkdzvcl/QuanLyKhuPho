@@ -135,6 +135,33 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  /**
+   * Atomic SET NX EX for distributed lock / claim pattern.
+   * Returns true if key was set, false if key already exists.
+   */
+  async setNxEx(key: string, value: string, seconds: number): Promise<boolean> {
+    if (this.client && !this.isMemoryMode) {
+      try {
+        const res = await this.client.set(key, value, 'EX', seconds, 'NX');
+        return res === 'OK';
+      } catch (err) {
+        this.handleOperationFailure('setNxEx', err);
+      }
+    }
+
+    this.cleanMemoryStore();
+    const item = this.memoryStore.get(key);
+    const now = Date.now();
+    if (item && (!item.expireAt || item.expireAt > now)) {
+      return false;
+    }
+    this.memoryStore.set(key, {
+      value,
+      expireAt: now + seconds * 1000,
+    });
+    return true;
+  }
+
   async del(key: string): Promise<void> {
     if (this.client && !this.isMemoryMode) {
       try {

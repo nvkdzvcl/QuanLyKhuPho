@@ -8,6 +8,7 @@ export class CryptoService implements OnModuleInit {
   private encryptionKey!: Buffer;
   private hashKey!: Buffer;
   private otpPepper!: string;
+  private queueEncryptionKey!: Buffer;
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -16,6 +17,7 @@ export class CryptoService implements OnModuleInit {
     const rawEncKey = this.configService.get<string>('PHONE_ENCRYPTION_KEY');
     const rawHashKey = this.configService.get<string>('PHONE_HASH_KEY');
     const rawOtpPepper = this.configService.get<string>('OTP_PEPPER');
+    const rawQueueKey = this.configService.get<string>('SMS_QUEUE_ENCRYPTION_KEY');
     this.otpPepper = rawOtpPepper || 'default_dev_otp_pepper_secret_32_bytes!';
 
     // Validate or derive 32-byte encryption key
@@ -54,7 +56,29 @@ export class CryptoService implements OnModuleInit {
         .digest();
     }
 
-    if (this.encryptionKey.length !== 32 || this.hashKey.length !== 32) {
+    // Validate or derive 32-byte dedicated SMS queue encryption key
+    if (rawQueueKey) {
+      if (rawQueueKey.length === 64 && /^[0-9a-fA-F]+$/.test(rawQueueKey)) {
+        this.queueEncryptionKey = Buffer.from(rawQueueKey, 'hex');
+      } else {
+        throw new Error('SMS_QUEUE_ENCRYPTION_KEY must be exactly 64 hexadecimal characters');
+      }
+    } else {
+      if (isProduction) throw new Error('SMS_QUEUE_ENCRYPTION_KEY is required in production');
+      this.logger.warn(
+        'SMS_QUEUE_ENCRYPTION_KEY not set in environment; using fallback key for development',
+      );
+      this.queueEncryptionKey = crypto
+        .createHash('sha256')
+        .update('dev_sms_queue_encryption_key_fallback_value_32_bytes')
+        .digest();
+    }
+
+    if (
+      this.encryptionKey.length !== 32 ||
+      this.hashKey.length !== 32 ||
+      this.queueEncryptionKey.length !== 32
+    ) {
       throw new Error('Cryptographic keys must resolve to exactly 32 bytes (256 bits).');
     }
     if (isProduction && (!rawOtpPepper || rawOtpPepper.length < 32)) {
@@ -134,18 +158,46 @@ export class CryptoService implements OnModuleInit {
   }
 
   /**
-   * Encrypts a JSON payload for message queues (RabbitMQ) so sensitive data is never exposed at rest.
+   * Encrypts a JSON payload for message queues (RabbitMQ) using dedicated SMS_QUEUE_ENCRYPTION_KEY.
    */
   encryptQueuePayload(data: Record<string, unknown>): string {
     const json = JSON.stringify(data);
-    return this.encrypt(json);
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', this.queueEncryptionKey, iv);
+    const encrypted = Buffer.concat([
+      cipher.update(json, 'utf8'),
+      cipher.final(),
+    ]);
+    const authTag = cipher.getAuthTag();
+
+    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`;
   }
 
   /**
    * Decrypts a queue payload encrypted with encryptQueuePayload().
    */
   decryptQueuePayload<T = Record<string, unknown>>(encryptedData: string): T {
-    const json = this.decrypt(encryptedData);
-    return JSON.parse(json) as T;
+    const parts = encryptedData.split(':');
+    const ivHex = parts[0];
+    const authTagHex = parts[1];
+    const ciphertextHex = parts[2];
+
+    if (parts.length !== 3 || !ivHex || !authTagHex || !ciphertextHex) {
+      throw new Error('Invalid encrypted queue payload format');
+    }
+
+    const iv = Buffer.from(ivHex, 'hex');
+    const authTag = Buffer.from(authTagHex, 'hex');
+    const ciphertext = Buffer.from(ciphertextHex, 'hex');
+
+    const decipher = crypto.createDecipheriv('aes-256-gcm', this.queueEncryptionKey, iv);
+    decipher.setAuthTag(authTag);
+
+    const decrypted = Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final(),
+    ]);
+
+    return JSON.parse(decrypted.toString('utf8')) as T;
   }
 }

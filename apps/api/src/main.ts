@@ -6,8 +6,60 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './core/exceptions/http-exception.filter';
 import { TransformInterceptor } from './core/interceptors/transform.interceptor';
+import { SmsWorkerService } from './rabbitmq/sms-publisher.service';
+import { UsersService } from './users/users.service';
 
 async function bootstrap() {
+  const isWorkerMode = process.argv.includes('--worker') || process.env.RUN_SMS_WORKER === 'true';
+  const isBootstrapOfficerMode =
+    process.argv.includes('--bootstrap-officer') ||
+    process.argv.includes('bootstrap:officer') ||
+    process.env.RUN_BOOTSTRAP_OFFICER === 'true';
+
+  // 1. Standalone SMS Worker Mode
+  if (isWorkerMode) {
+    const logger = new Logger('SmsWorkerProcess');
+    logger.log('Initializing SMS delivery worker process...');
+    const app = await NestFactory.createApplicationContext(AppModule);
+    const workerService = app.get(SmsWorkerService);
+    await workerService.startConsumer();
+    logger.log('SMS delivery worker started and consuming queue');
+
+    const shutdown = async (signal: string) => {
+      logger.log(`Received ${signal}, shutting down SMS worker gracefully...`);
+      await workerService.stopConsumer();
+      await app.close();
+      process.exit(0);
+    };
+
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    return;
+  }
+
+  // 2. One-time Officer Bootstrap Mode
+  if (isBootstrapOfficerMode) {
+    const logger = new Logger('BootstrapOfficerCommand');
+    logger.log('Starting officer bootstrap procedure...');
+    const app = await NestFactory.createApplicationContext(AppModule);
+    const usersService = app.get(UsersService);
+
+    try {
+      const result = await usersService.bootstrapOfficer();
+      logger.log(
+        `Officer bootstrap complete: ID=${result.id}, Name=${result.fullName}, Status=${result.status}, Role=${result.role}, MaskedPhone=${result.maskedPhone}, isExisting=${result.isExisting}`,
+      );
+      await app.close();
+      process.exit(0);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      logger.error(`Officer bootstrap failed: ${errorMsg}`);
+      await app.close();
+      process.exit(1);
+    }
+  }
+
+  // 3. Default HTTP API Server Mode
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 

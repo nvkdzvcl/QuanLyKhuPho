@@ -75,7 +75,13 @@ export class OtpService {
     await this.redisService.setex(hashKey, OTP_EXPIRES_IN_SECONDS, otpHash);
 
     // 5. Publish encrypted SMS command to RabbitMQ queue
-    await this.smsPublisherService.publishOtpSms(normalizedPhone, otpCode);
+    try {
+      await this.smsPublisherService.publishOtpSms(normalizedPhone, otpCode);
+    } catch (error) {
+      // Clean up active OTP hash so undeliverable code is not left active; keep rate-limit intact
+      await this.redisService.del(hashKey);
+      throw error;
+    }
 
     return {
       expiresIn: OTP_EXPIRES_IN_SECONDS,

@@ -519,4 +519,142 @@ export class UsersService {
 
     return this.formatUserDto(leader);
   }
+
+  /**
+   * Bootstraps the initial ward officer account.
+   * Concurrency-safe and idempotent for the same officer identity.
+   * Refuses if an officer already exists with a different identity, or if the phone
+   * is already registered under another role.
+   */
+  async bootstrapOfficer(
+    rawPhone?: string,
+    rawFullName?: string,
+  ): Promise<UserDto & { isExisting: boolean }> {
+    const phoneInput = rawPhone || process.env.BOOTSTRAP_OFFICER_PHONE;
+    const fullNameInput = rawFullName || process.env.BOOTSTRAP_OFFICER_FULL_NAME;
+
+    if (!phoneInput || typeof phoneInput !== 'string' || phoneInput.trim().length === 0) {
+      throw new AppException(
+        'BOOTSTRAP_OFFICER_PHONE is required in the environment',
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.INVALID_PHONE_NUMBER,
+      );
+    }
+
+    if (!fullNameInput || typeof fullNameInput !== 'string' || fullNameInput.trim().length === 0) {
+      throw new AppException(
+        'BOOTSTRAP_OFFICER_FULL_NAME is required in the environment',
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.VALIDATION_ERROR,
+      );
+    }
+
+    const normalizedPhone = normalizePhoneNumber(phoneInput);
+    const trimmedFullName = fullNameInput.trim();
+    const phoneHash = this.cryptoService.hashPhone(normalizedPhone);
+    const phoneEncrypted = this.cryptoService.encrypt(normalizedPhone);
+
+    const MAX_RETRIES = 3;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            // 1. Check for existing officer accounts
+            const existingOfficers = await tx.account.findMany({
+              where: { role: Role.officer },
+              include: { neighborhood: true },
+            });
+
+            if (existingOfficers.length > 0) {
+              // Check if identical identity (same phoneHash and full name)
+              const matched = existingOfficers.find(
+                (off) =>
+                  off.phoneHash === phoneHash &&
+                  off.fullName.trim() === trimmedFullName,
+              );
+
+              if (matched && existingOfficers.length === 1) {
+                this.logger.log(
+                  `Officer already bootstrapped with matching identity (ID: ${matched.id})`,
+                );
+                return {
+                  ...this.formatUserDto(matched),
+                  isExisting: true,
+                };
+              }
+
+              throw new AppException(
+                'An officer already exists in the system with a different identity. Bootstrap is permitted only once for the initial officer.',
+                HttpStatus.CONFLICT,
+                ErrorCode.FORBIDDEN,
+              );
+            }
+
+            // 2. Check if phone is already registered under another role
+            const phoneOwner = await tx.account.findUnique({
+              where: { phoneHash },
+            });
+
+            if (phoneOwner) {
+              throw new AppException(
+                `Phone number is already registered under another role (${phoneOwner.role}). Cannot bootstrap officer with this phone.`,
+                HttpStatus.CONFLICT,
+                ErrorCode.PHONE_ALREADY_EXISTS,
+              );
+            }
+
+            // 3. Create the initial active officer
+            const created = await tx.account.create({
+              data: {
+                phoneEncrypted,
+                phoneHash,
+                fullName: trimmedFullName,
+                role: Role.officer,
+                status: DbAccountStatus.active,
+                neighborhoodId: null,
+              },
+              include: { neighborhood: true },
+            });
+
+            this.logger.log(
+              `Initial officer bootstrapped successfully (ID: ${created.id}, Role: ${created.role})`,
+            );
+
+            return {
+              ...this.formatUserDto(created),
+              isExisting: false,
+            };
+          },
+          {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          },
+        );
+      } catch (err) {
+        if (err instanceof AppException) {
+          throw err;
+        }
+
+        const isSerializationConflict =
+          (err instanceof Prisma.PrismaClientKnownRequestError &&
+            (err.code === 'P2034' || err.code === 'P2002')) ||
+          (err instanceof Error &&
+            err.message.toLowerCase().includes('serialization'));
+
+        if (isSerializationConflict && attempt < MAX_RETRIES) {
+          this.logger.warn(
+            `Serializable conflict during officer bootstrap; retrying attempt ${attempt + 1}...`,
+          );
+          await new Promise((r) => setTimeout(r, 50 * attempt));
+          continue;
+        }
+
+        lastError = err;
+        break;
+      }
+    }
+
+    throw lastError;
+  }
 }
