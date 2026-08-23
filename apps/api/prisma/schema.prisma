@@ -66,6 +66,14 @@ enum PetitionStatus {
   @@map("petition_status_enum")
 }
 
+enum Gender {
+  male
+  female
+  other
+
+  @@map("gender_enum")
+}
+
 model Neighborhood {
   id          String    @id @default(uuid()) @db.Uuid
   code        String    @unique @db.VarChar(50)
@@ -77,9 +85,11 @@ model Neighborhood {
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  accounts      Account[]
-  announcements Announcement[]
-  petitions     Petition[]
+  accounts         Account[]
+  announcements    Announcement[]
+  petitions        Petition[]
+  households       Household[]
+  residentProfiles ResidentProfile[]
 
   @@unique([ward, name])
   @@map("neighborhoods")
@@ -262,4 +272,52 @@ model PetitionHistory {
   @@index([petitionId, createdAt])
   @@index([changedById])
   @@map("petition_histories")
+}
+
+model Household {
+  id             String    @id @default(uuid()) @db.Uuid
+  code           String    @db.VarChar(50)
+  neighborhoodId String    @map("neighborhood_id") @db.Uuid
+  address        String    @db.VarChar(500)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  neighborhood Neighborhood      @relation(fields: [neighborhoodId], references: [id], onDelete: Restrict)
+  members      ResidentProfile[]
+
+  @@unique([neighborhoodId, code])
+  @@index([neighborhoodId])
+  @@map("households")
+}
+
+model ResidentProfile {
+  id                 String    @id @default(uuid()) @db.Uuid
+  fullName           String    @map("full_name") @db.VarChar(255)
+  citizenIdEncrypted String    @map("citizen_id_encrypted") @db.Text
+  citizenIdHash      String    @unique @map("citizen_id_hash") @db.VarChar(64)
+  citizenIdIssueDate DateTime? @map("citizen_id_issue_date") @db.Timestamptz(6)
+  birthDate          DateTime  @map("birth_date") @db.Timestamptz(6)
+  gender             Gender    @default(other) @map("gender")
+  placeOfBirth       String?   @map("place_of_birth") @db.VarChar(255)
+  relationshipToHead String?   @map("relationship_to_head") @db.VarChar(100)
+  phoneEncrypted     String?   @map("phone_encrypted") @db.Text
+  emailEncrypted     String?   @map("email_encrypted") @db.Text
+  occupation         String?   @map("occupation") @db.VarChar(255)
+  permanentAddress   String    @map("permanent_address") @db.VarChar(500)
+  currentAddress     String?   @map("current_address") @db.VarChar(500)
+  ward               String?   @db.VarChar(255)
+  city               String?   @db.VarChar(255)
+  householdId        String    @map("household_id") @db.Uuid
+  neighborhoodId     String    @map("neighborhood_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  household    Household    @relation(fields: [householdId], references: [id], onDelete: Restrict)
+  neighborhood Neighborhood @relation(fields: [neighborhoodId], references: [id], onDelete: Restrict)
+
+  @@index([neighborhoodId])
+  @@index([householdId])
+  @@index([fullName])
+  @@index([neighborhoodId, fullName])
+  @@map("resident_profiles")
 }

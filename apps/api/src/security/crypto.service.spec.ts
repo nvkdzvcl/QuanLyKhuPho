@@ -74,6 +74,30 @@ describe('CryptoService', () => {
     });
   });
 
+  describe('HMAC-SHA-256 Citizen ID Lookup Hash', () => {
+    it('should generate deterministic blind index hash for same citizen ID with domain separation', () => {
+      const citizenId = '012345678901';
+      const hash1 = service.hashCitizenId(citizenId);
+      const hash2 = service.hashCitizenId(citizenId);
+
+      expect(hash1).toBe(hash2);
+      expect(hash1.length).toBe(64);
+      expect(hash1).not.toBe(citizenId);
+
+      // Domain separation: hashCitizenId should not collide with hashPhone even if input was same string
+      const phoneHash = service.hashPhone(citizenId);
+      expect(hash1).not.toBe(phoneHash);
+    });
+
+    it('should generate distinct hashes for different citizen IDs', () => {
+      const hash1 = service.hashCitizenId('012345678901');
+      const hash2 = service.hashCitizenId('012345678902');
+
+      expect(hash1).not.toBe(hash2);
+    });
+  });
+
+
   describe('Keyed OTP Hashing', () => {
     it('should produce deterministic hash for phone + OTP code', () => {
       const phoneHash = service.hashPhone('+84912345678');

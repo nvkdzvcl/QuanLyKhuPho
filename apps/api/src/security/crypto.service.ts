@@ -141,6 +141,16 @@ export class CryptoService implements OnModuleInit {
   }
 
   /**
+   * Computes deterministic HMAC-SHA-256 lookup hash for 12-digit citizen IDs with domain separation.
+   */
+  hashCitizenId(citizenId: string): string {
+    return crypto
+      .createHmac('sha256', this.hashKey)
+      .update(`citizen_id:${citizenId.trim()}`)
+      .digest('hex');
+  }
+
+  /**
    * Computes keyed HMAC-SHA-256 hash for OTP codes.
    */
   hashOtp(phoneHash: string, otpCode: string): string {

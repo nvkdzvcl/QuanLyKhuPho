@@ -12,6 +12,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { PetitionsModule } from './petitions/petitions.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { ResidentProfilesModule } from './resident-profiles/resident-profiles.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     AnnouncementsModule,
     PetitionsModule,
     DashboardModule,
+    ResidentProfilesModule,
   ],
 })
 export class AppModule {}
