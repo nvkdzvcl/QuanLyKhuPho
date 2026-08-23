@@ -10,3 +10,4 @@ export * from './notifications';
 export * from './petitions';
 export * from './dashboard';
 export * from './resident-profiles';
+export * from './political-social-profiles';

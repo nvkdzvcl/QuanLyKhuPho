@@ -74,6 +74,26 @@ enum Gender {
   @@map("gender_enum")
 }
 
+enum PartyStatus {
+  party_member
+  under_consideration
+  not_member
+
+  @@map("party_status_enum")
+}
+
+enum HighestEducation {
+  lower_secondary
+  upper_secondary
+  vocational
+  college
+  bachelor
+  master
+  doctorate
+
+  @@map("highest_education_enum")
+}
+
 model Neighborhood {
   id          String    @id @default(uuid()) @db.Uuid
   code        String    @unique @db.VarChar(50)
@@ -314,10 +334,31 @@ model ResidentProfile {
 
   household    Household    @relation(fields: [householdId], references: [id], onDelete: Restrict)
   neighborhood Neighborhood @relation(fields: [neighborhoodId], references: [id], onDelete: Restrict)
+  politicalSocialProfile PoliticalSocialProfile?
 
   @@index([neighborhoodId])
   @@index([householdId])
   @@index([fullName])
   @@index([neighborhoodId, fullName])
   @@map("resident_profiles")
+}
+
+model PoliticalSocialProfile {
+  id                 String            @id @default(uuid()) @db.Uuid
+  residentProfileId  String            @unique @map("resident_profile_id") @db.Uuid
+  partyStatus        PartyStatus       @map("party_status")
+  partyAdmissionDate DateTime?         @map("party_admission_date") @db.Timestamptz(6)
+  highestEducation   HighestEducation? @map("highest_education")
+  specialty          String?           @map("specialty") @db.VarChar(255)
+  officialOccupation String?           @map("official_occupation") @db.VarChar(255)
+  strengths          String?           @map("strengths") @db.VarChar(1000)
+  notes              String?           @db.Text
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  residentProfile ResidentProfile @relation(fields: [residentProfileId], references: [id], onDelete: Restrict)
+
+  @@index([partyStatus])
+  @@index([highestEducation])
+  @@map("political_social_profiles")
 }

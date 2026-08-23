@@ -25,6 +25,7 @@ import { getErrorMessage } from '../../lib/api-client';
 import { AnnouncementFeed } from '../announcements/announcement-feed';
 import { PetitionList } from '../petitions/petition-list';
 import { ResidentProfileManagement } from '../resident-profiles/resident-profile-management';
+import { PoliticalSocialManagement } from '../political-social-profiles/political-social-management';
 import { WardOverviewStats } from './ward-overview-stats';
 import { PeriodicReportCard } from './periodic-report-card';
 
@@ -152,6 +153,9 @@ export function OfficerView({ user }: OfficerViewProps) {
 
       {/* Resident Profiles Management Section for Officer */}
       <ResidentProfileManagement user={user} />
+
+      {/* Political & Social Profiles Management Section for Officer */}
+      <PoliticalSocialManagement user={user} />
 
       {/* Ward Oversight & Pending Queue */}
       <Card>

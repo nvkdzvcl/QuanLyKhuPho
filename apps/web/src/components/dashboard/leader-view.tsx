@@ -25,6 +25,7 @@ import { getErrorMessage } from '../../lib/api-client';
 import { AnnouncementFeed } from '../announcements/announcement-feed';
 import { PetitionList } from '../petitions/petition-list';
 import { ResidentProfileManagement } from '../resident-profiles/resident-profile-management';
+import { PoliticalSocialManagement } from '../political-social-profiles/political-social-management';
 
 interface LeaderViewProps {
   user: UserDto;
@@ -168,6 +169,9 @@ export function LeaderView({ user }: LeaderViewProps) {
 
       {/* Resident Profiles Management Section for Leader */}
       <ResidentProfileManagement user={user} />
+
+      {/* Political & Social Profiles Management Section for Leader */}
+      <PoliticalSocialManagement user={user} />
 
       {/* Pending Accounts Card */}
       <Card>

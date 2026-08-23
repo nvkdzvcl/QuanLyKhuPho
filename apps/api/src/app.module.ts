@@ -13,6 +13,7 @@ import { AnnouncementsModule } from './announcements/announcements.module';
 import { PetitionsModule } from './petitions/petitions.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ResidentProfilesModule } from './resident-profiles/resident-profiles.module';
+import { PoliticalSocialProfilesModule } from './political-social-profiles/political-social-profiles.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ResidentProfilesModule } from './resident-profiles/resident-profiles.mo
     PetitionsModule,
     DashboardModule,
     ResidentProfilesModule,
+    PoliticalSocialProfilesModule,
   ],
 })
 export class AppModule {}

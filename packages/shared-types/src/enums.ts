@@ -54,6 +54,22 @@ export enum Gender {
   OTHER = 'other',
 }
 
+export enum PartyStatus {
+  PARTY_MEMBER = 'party_member',
+  UNDER_CONSIDERATION = 'under_consideration',
+  NOT_MEMBER = 'not_member',
+}
+
+export enum HighestEducation {
+  LOWER_SECONDARY = 'lower_secondary',
+  UPPER_SECONDARY = 'upper_secondary',
+  VOCATIONAL = 'vocational',
+  COLLEGE = 'college',
+  BACHELOR = 'bachelor',
+  MASTER = 'master',
+  DOCTORATE = 'doctorate',
+}
+
 export enum ErrorCode {
   RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
   INVALID_OTP = 'INVALID_OTP',
@@ -100,4 +116,5 @@ export enum ErrorCode {
   RESIDENT_PROFILE_NOT_FOUND = 'RESIDENT_PROFILE_NOT_FOUND',
   HOUSEHOLD_NOT_FOUND = 'HOUSEHOLD_NOT_FOUND',
   INVALID_CITIZEN_ID = 'INVALID_CITIZEN_ID',
+  POLITICAL_SOCIAL_PROFILE_NOT_FOUND = 'POLITICAL_SOCIAL_PROFILE_NOT_FOUND',
 }
