@@ -143,21 +143,47 @@ catch {
 }
 
 if ($result.status -ne "SUCCESS") {
-    $details = if ($result.PSObject.Properties.Name -contains "error") {
+    $status = [string]$result.status
+    $errorDetails = if ($result.PSObject.Properties.Name -contains "error") {
         [string]$result.error
     }
-    elseif ($result.PSObject.Properties.Name -contains "response") {
+    else {
+        ""
+    }
+    $responseDetails = if ($result.PSObject.Properties.Name -contains "response") {
         [string]$result.response
+    }
+    else {
+        ""
+    }
+    $details = if (-not [string]::IsNullOrWhiteSpace($errorDetails)) {
+        $errorDetails
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($responseDetails)) {
+        $responseDetails
     }
     else {
         $rawJson
     }
 
-    if ($details -match "(?i)(permission|approval|soft-deny|soft denying|user denied)") {
+    $timeoutStatus = $status -match "(?i)^(timed[_ -]?out|timeout)$"
+    $timeoutError = $errorDetails -match "(?i)(timed[ -]?out|timeout|deadline exceeded)"
+    $timeoutResponse = $responseDetails -match "(?im)^\s*(error:\s*)?((the\s+)?(request|operation|stream|print mode)\s+)?(timed[ -]?out|timeout|deadline exceeded)"
+    if ($timeoutStatus -or $timeoutError -or $timeoutResponse) {
+        throw "Antigravity timed out after $Timeout. Review the existing diff; if the stream was only interrupted and no permission denial occurred, one compact -Continue run is allowed. Diagnostic log: $logPath"
+    }
+
+    $permissionStatus = $status -match "(?i)^permission[_ -]?denied$"
+    $specificPermissionError = $errorDetails -match "(?i)(permission check failed|approval (required|denied)|soft[- ]deny|soft denying|user denied)"
+    $specificPermissionResponse = $responseDetails -match "(?im)^\s*(error:\s*)?(permission check failed|approval (required|denied)|soft[- ]deny|soft denying|user denied)"
+    $plainPermissionError = $errorDetails -match "(?i)\bpermission denied\b"
+    $plainPermissionResponse = $responseDetails -match "(?im)^\s*(error:\s*)?permission denied\b"
+
+    if ($permissionStatus -or $specificPermissionError -or $specificPermissionResponse -or $plainPermissionError -or $plainPermissionResponse) {
         throw "Antigravity hit a permission denial. Do not retry with -Continue; review the existing diff and run verification in Codex. Diagnostic log: $logPath"
     }
 
-    throw "Antigravity returned status '$($result.status)': $details. Diagnostic log: $logPath"
+    throw "Antigravity returned status '$status': $details. Diagnostic log: $logPath"
 }
 
 $handoff = [string]$result.response

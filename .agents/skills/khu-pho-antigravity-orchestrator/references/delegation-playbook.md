@@ -73,6 +73,12 @@ output, and an eight-minute default timeout. It adds the implementation-only
 constraint, validates the model and required handoff sections, then writes
 `.ai-work/last-handoff.md`.
 
+Keep the eight-minute default for `DELEGATE` and `PHASE` runs. Lower it only for
+an intentional diagnostic time box, not for substantial implementation. The
+runner reports timeout separately and treats only explicit denial markers as a
+permission failure; ordinary product text such as a `permission-denied` UI state
+must not trigger permission recovery.
+
 The runner also adds the repository root explicitly and injects a filesystem
 boundary into every prompt. Antigravity must use absolute paths beneath
 `D:/QuanLyKhuPho` for reads, writes, listings, globs, and searches. It must not
