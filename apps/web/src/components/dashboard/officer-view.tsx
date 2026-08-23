@@ -23,6 +23,7 @@ import {
 import { getErrorMessage } from '../../lib/api-client';
 
 import { AnnouncementFeed } from '../announcements/announcement-feed';
+import { PetitionList } from '../petitions/petition-list';
 
 interface OfficerViewProps {
   user: UserDto;
@@ -136,6 +137,9 @@ export function OfficerView({ user }: OfficerViewProps) {
 
       {/* Ward Announcements Management Feed */}
       <AnnouncementFeed user={user} />
+
+      {/* Ward Petitions Oversight & Management */}
+      <PetitionList user={user} />
 
       {/* Ward Oversight & Pending Queue */}
       <Card>

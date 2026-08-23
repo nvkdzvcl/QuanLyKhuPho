@@ -41,9 +41,29 @@ enum AnnouncementStatus {
 enum NotificationType {
   announcement
   comment
+  petition
   system
 
   @@map("notification_type_enum")
+}
+
+enum PetitionCategory {
+  infrastructure
+  sanitation
+  security
+  other
+
+  @@map("petition_category_enum")
+}
+
+enum PetitionStatus {
+  reviewing
+  processing
+  resolved
+  rejected
+  cancelled
+
+  @@map("petition_status_enum")
 }
 
 model Neighborhood {
@@ -59,6 +79,7 @@ model Neighborhood {
 
   accounts      Account[]
   announcements Announcement[]
+  petitions     Petition[]
 
   @@unique([ward, name])
   @@map("neighborhoods")
@@ -84,6 +105,8 @@ model Account {
   moderatedComments Comment[]          @relation("CommentModerator")
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
+  petitions         Petition[]         @relation("PetitionAuthor")
+  petitionHistories PetitionHistory[]  @relation("PetitionHistoryAuthor")
 
   @@index([role, status])
   @@index([neighborhoodId, status])
@@ -182,4 +205,61 @@ model PushSubscription {
 
   @@index([accountId])
   @@map("push_subscriptions")
+}
+
+model Petition {
+  id             String           @id @default(uuid()) @db.Uuid
+  title          String           @db.VarChar(255)
+  description    String           @db.Text
+  category       PetitionCategory
+  status         PetitionStatus   @default(reviewing)
+  neighborhoodId String           @map("neighborhood_id") @db.Uuid
+  authorId       String           @map("author_id") @db.Uuid
+  responseNote   String?          @map("response_note") @db.Text
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  neighborhood Neighborhood       @relation(fields: [neighborhoodId], references: [id], onDelete: Restrict)
+  author       Account            @relation("PetitionAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  evidence     PetitionEvidence[]
+  histories    PetitionHistory[]
+
+  @@index([status, createdAt])
+  @@index([neighborhoodId, status, createdAt])
+  @@index([authorId, status, createdAt])
+  @@index([category, status, createdAt])
+  @@map("petitions")
+}
+
+model PetitionEvidence {
+  id           String   @id @default(uuid()) @db.Uuid
+  petitionId   String   @map("petition_id") @db.Uuid
+  fileName     String   @map("file_name") @db.VarChar(255)
+  originalName String   @map("original_name") @db.VarChar(255)
+  mimeType     String   @map("mime_type") @db.VarChar(100)
+  fileSize     Int      @map("file_size")
+  filePath     String   @map("file_path") @db.VarChar(500)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  petition Petition @relation(fields: [petitionId], references: [id], onDelete: Cascade)
+
+  @@index([petitionId])
+  @@map("petition_evidences")
+}
+
+model PetitionHistory {
+  id          String          @id @default(uuid()) @db.Uuid
+  petitionId  String          @map("petition_id") @db.Uuid
+  fromStatus  PetitionStatus? @map("from_status")
+  toStatus    PetitionStatus  @map("to_status")
+  changedById String          @map("changed_by_id") @db.Uuid
+  note        String?         @db.Text
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  petition  Petition @relation(fields: [petitionId], references: [id], onDelete: Restrict)
+  changedBy Account  @relation("PetitionHistoryAuthor", fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([petitionId, createdAt])
+  @@index([changedById])
+  @@map("petition_histories")
 }

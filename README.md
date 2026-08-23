@@ -203,6 +203,17 @@ pnpm dev
 | `POST` | `/api/notifications/push/subscribe` | Authenticated | Đăng ký subscription thông báo đẩy trình duyệt |
 | `POST` | `/api/notifications/push/unsubscribe` | Authenticated | Hủy đăng ký subscription thông báo đẩy |
 
+### Kiến nghị & Phản ánh (Petitions & Workflows - Sprint 2B)
+
+| Method | Endpoint | Quyền hạn | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/petitions` | Resident | Gửi kiến nghị mới (kèm tối đa 5 hình ảnh minh chứng JPEG/PNG/WebP, <= 10 MiB/ảnh) |
+| `GET` | `/api/petitions` | Authenticated | Danh sách kiến nghị theo phân quyền (Cư dân: của mình; Trưởng KP: khu phố; Cán bộ: toàn phường) |
+| `GET` | `/api/petitions/:id` | Authenticated | Chi tiết kiến nghị, hình ảnh minh chứng và tiến trình lịch sử trạng thái bất biến |
+| `GET` | `/api/petitions/:id/evidence/:evidenceId` | Authenticated | Xem/tải hình ảnh minh chứng an toàn sau khi xác thực quyền truy cập |
+| `PATCH` | `/api/petitions/:id/status` | Leader / Officer | Xử lý chuyển trạng thái (`reviewing -> processing -> resolved \| rejected`, từ chối yêu cầu lý do) |
+| `PATCH` | `/api/petitions/:id/cancel` | Resident (Author) | Cư dân tác giả hủy kiến nghị khi đang ở trạng thái chờ tiếp nhận (`reviewing`) |
+
 ### Địa bàn & Khu phố (Neighborhoods)
 
 | Method | Endpoint | Quyền hạn | Mô tả |

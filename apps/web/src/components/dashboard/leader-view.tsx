@@ -23,6 +23,7 @@ import {
 import { getErrorMessage } from '../../lib/api-client';
 
 import { AnnouncementFeed } from '../announcements/announcement-feed';
+import { PetitionList } from '../petitions/petition-list';
 
 interface LeaderViewProps {
   user: UserDto;
@@ -160,6 +161,9 @@ export function LeaderView({ user }: LeaderViewProps) {
 
       {/* Announcements Feed Section for Leader */}
       <AnnouncementFeed user={user} />
+
+      {/* Petitions Management Section for Leader */}
+      <PetitionList user={user} />
 
       {/* Pending Accounts Card */}
       <Card>

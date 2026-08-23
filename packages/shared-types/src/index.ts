@@ -7,3 +7,4 @@ export * from './admin';
 export * from './announcements';
 export * from './comments';
 export * from './notifications';
+export * from './petitions';

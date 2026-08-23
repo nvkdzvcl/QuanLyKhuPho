@@ -19,6 +19,13 @@ import { RolesGuard } from '../security/guards/roles.guard';
     CsrfGuard,
     RolesGuard,
   ],
-  exports: [AuthService, OtpService, SessionService, AuthGuard, RolesGuard],
+  exports: [
+    AuthService,
+    OtpService,
+    SessionService,
+    AuthGuard,
+    CsrfGuard,
+    RolesGuard,
+  ],
 })
 export class AuthModule {}

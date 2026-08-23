@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge } from
 import { UserDto } from '@quanlykhupho/shared-types';
 
 import { AnnouncementFeed } from '../announcements/announcement-feed';
+import { PetitionList } from '../petitions/petition-list';
 
 interface ResidentViewProps {
   user: UserDto;
@@ -36,6 +37,9 @@ export function ResidentView({ user }: ResidentViewProps) {
 
       {/* Announcements Feed Section */}
       <AnnouncementFeed user={user} />
+
+      {/* Petitions Section for Resident */}
+      <PetitionList user={user} />
 
       {/* Resident Profile & Household Info Card */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
