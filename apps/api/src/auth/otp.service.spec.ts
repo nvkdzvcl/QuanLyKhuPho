@@ -577,6 +577,8 @@ describe('OtpService', () => {
     it('throws and cleans up connection if createConfirmChannel or assertTopology fails after connection opened', async () => {
       let closeCalled = false;
       const fakeConnection = {
+        once: vi.fn().mockReturnThis(),
+        on: vi.fn().mockReturnThis(),
         createConfirmChannel: vi.fn().mockRejectedValue(new Error('Channel creation failed')),
         close: vi.fn().mockImplementation(async () => {
           closeCalled = true;

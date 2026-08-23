@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as amqp from 'amqplib';
+import { ServiceHealth } from '@quanlykhupho/shared-types';
 
 export const SMS_QUEUE_NAME = 'sms_commands';
 export const SMS_DLQ_NAME = 'sms_commands_dlq';
@@ -23,6 +24,7 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
   private isMemoryMode = false;
   private readonly isProduction: boolean;
   private topologyAsserted = false;
+  private isConnected = false;
   public readonly publishedMessages: PublishedMessageRecord[] = [];
 
   constructor(private readonly configService: ConfigService) {
@@ -47,6 +49,15 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     // Stage 1: Initial Connection Attempt
     try {
       this.connection = await this.openConnection(rabbitmqUrl);
+      this.connection.once('close', () => {
+        this.isConnected = false;
+        this.topologyAsserted = false;
+        this.channel = null;
+        this.connection = null;
+      });
+      this.connection.on('error', () => {
+        this.isConnected = false;
+      });
     } catch (err) {
       if (this.isProduction) {
         this.logger.error('RabbitMQ connection failed');
@@ -62,8 +73,14 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     // Stage 2: Channel Creation & Topology Setup (connection established; failures must close and throw)
     try {
       this.channel = await this.connection.createConfirmChannel();
+      this.channel.once('close', () => {
+        this.isConnected = false;
+        this.topologyAsserted = false;
+        this.channel = null;
+      });
       this.logger.log('Connected to RabbitMQ server with ConfirmChannel');
       await this.assertTopology();
+      this.isConnected = true;
     } catch (err) {
       this.logger.error(
         'RabbitMQ channel creation or topology assertion failed after connection established',
@@ -82,6 +99,7 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
       this.channel = null;
       this.connection = null;
       this.isMemoryMode = false;
+      this.isConnected = false;
       throw new Error(
         'Failed to establish RabbitMQ confirm channel or topology after connection was opened',
         { cause: err },
@@ -90,6 +108,7 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    this.isConnected = false;
     try {
       if (this.channel) await this.channel.close();
       if (this.connection) await this.connection.close();
@@ -197,5 +216,23 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
 
   isInMemory(): boolean {
     return this.isMemoryMode;
+  }
+
+  ping(): Promise<ServiceHealth> {
+    const start = Date.now();
+    if (this.isMemoryMode || !this.isConnected || !this.connection || !this.channel) {
+      return Promise.resolve({
+        status: this.isProduction ? 'down' : 'degraded',
+        message: this.isProduction
+          ? 'RabbitMQ connection unavailable'
+          : 'In-memory fallback active (RabbitMQ is not connected)',
+      });
+    }
+
+    return Promise.resolve({
+      status: 'ok',
+      latencyMs: Date.now() - start,
+      message: 'RabbitMQ connection is healthy',
+    });
   }
 }

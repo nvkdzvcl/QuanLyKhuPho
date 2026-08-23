@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { HealthResponseDto, isSystemHealthy } from '@quanlykhupho/shared-types';
 import { Button } from '@quanlykhupho/ui';
@@ -9,36 +9,34 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
 const fallbackHealth: HealthResponseDto = {
-  status: 'ok',
+  status: 'down',
   version: '0.1.0',
   timestamp: new Date().toISOString(),
-  environment: 'development (offline preview)',
+  environment: 'Không xác định',
   services: {
-    database: { status: 'ok', message: 'Sẵn sàng kết nối PostgreSQL' },
-    redis: { status: 'ok', message: 'Sẵn sàng kết nối Redis' },
-    rabbitmq: { status: 'ok', message: 'Sẵn sàng kết nối RabbitMQ' },
+    database: { status: 'down', message: 'Chưa kiểm tra được PostgreSQL' },
+    redis: { status: 'down', message: 'Chưa kiểm tra được Redis' },
+    rabbitmq: { status: 'down', message: 'Chưa kiểm tra được RabbitMQ' },
   },
 };
 
 async function fetchApiHealth(): Promise<HealthResponseDto> {
   const res = await fetch(`${API_BASE_URL}/health`);
-  if (!res.ok) {
+  const payload = (await res.json()) as HealthResponseDto;
+  if (!res.ok && res.status !== 503) {
     throw new Error(`HTTP error! status: ${res.status}`);
   }
-  return (await res.json()) as HealthResponseDto;
+  return payload;
 }
 
 export function HealthStatusWidget() {
-  const [useLiveApi, setUseLiveApi] = useState(false);
-
   const { data, error, isLoading, refetch, isFetching } = useQuery<HealthResponseDto>({
     queryKey: ['system-health'],
     queryFn: fetchApiHealth,
-    enabled: useLiveApi,
     retry: 1,
   });
 
-  const currentHealth = useLiveApi && data ? data : fallbackHealth;
+  const currentHealth = data ?? fallbackHealth;
   const isHealthy = isSystemHealthy(currentHealth);
 
   return (
@@ -56,35 +54,23 @@ export function HealthStatusWidget() {
             </h3>
           </div>
           <p className="mt-1 text-sm text-slate-500">
-            {useLiveApi
-              ? isLoading
-                ? 'Đang kiểm tra kết nối API...'
-                : error
-                  ? 'Không thể kết nối API trực tiếp (API đang tắt hoặc chưa khởi động)'
-                  : 'Đã kết nối API trực tiếp thành công'
-              : 'Đang hiển thị trạng thái khởi tạo (Phase 0 Standalone Preview)'}
+            {isLoading
+              ? 'Đang kiểm tra kết nối API...'
+              : error
+                ? 'Không thể kết nối API trực tiếp (API đang tắt hoặc chưa khởi động)'
+                : 'Đã nhận trạng thái hạ tầng từ API'}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <Button
-            variant={useLiveApi ? 'secondary' : 'outline'}
+            variant="primary"
             size="sm"
-            onClick={() => setUseLiveApi(!useLiveApi)}
+            isLoading={isFetching}
+            onClick={() => void refetch()}
           >
-            {useLiveApi ? 'Chuyển sang chế độ Preview' : 'Kiểm tra API trực tiếp'}
+            Làm mới
           </Button>
-
-          {useLiveApi && (
-            <Button
-              variant="primary"
-              size="sm"
-              isLoading={isFetching}
-              onClick={() => void refetch()}
-            >
-              Làm mới
-            </Button>
-          )}
         </div>
       </div>
 
@@ -119,7 +105,7 @@ export function HealthStatusWidget() {
 
       <div className="mt-4 border-t border-slate-100 pt-4">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Dịch vụ hạ tầng dự kiến (Phase 0 Scaffold)
+          Dịch vụ hạ tầng
         </h4>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-white p-3 shadow-2xs">

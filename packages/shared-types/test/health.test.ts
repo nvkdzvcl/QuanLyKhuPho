@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isSystemHealthy, HealthResponseDto } from '../src';
+import { isSystemHealthy, HealthResponseDto, LivenessResponseDto } from '../src';
 
 describe('Shared Health Types and Utilities', () => {
   it('should identify a healthy system response', () => {
@@ -42,5 +42,17 @@ describe('Shared Health Types and Utilities', () => {
     };
 
     expect(isSystemHealthy(downHealth)).toBe(false);
+  });
+
+  it('should support liveness response shape', () => {
+    const liveness: LivenessResponseDto = {
+      status: 'ok',
+      version: '0.1.0',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: 123,
+    };
+
+    expect(liveness.status).toBe('ok');
+    expect(liveness.uptimeSeconds).toBeGreaterThanOrEqual(0);
   });
 });

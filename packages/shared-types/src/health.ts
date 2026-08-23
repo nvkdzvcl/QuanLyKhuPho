@@ -18,6 +18,13 @@ export interface HealthResponseDto {
   };
 }
 
+export interface LivenessResponseDto {
+  status: 'ok';
+  version: string;
+  timestamp: string;
+  uptimeSeconds: number;
+}
+
 /**
  * Determines whether the overall system status is healthy.
  */

@@ -1,5 +1,6 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional, IsString, validateSync } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
+import { isIP } from 'node:net';
 
 export enum Environment {
   Development = 'development',
@@ -24,6 +25,10 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   CORS_ORIGIN: string = 'http://localhost:3000';
+
+  @IsString()
+  @IsOptional()
+  TRUST_PROXY: string = 'loopback';
 
   @IsString()
   @IsOptional()
@@ -68,6 +73,12 @@ export class EnvironmentVariables {
   @IsNumber()
   @IsOptional()
   SMS_PROVIDER_TIMEOUT_MS: number = 5000;
+
+  @IsNumber()
+  @Min(100)
+  @Max(5000)
+  @IsOptional()
+  HEALTH_PROBE_TIMEOUT_MS: number = 1000;
 
   @IsString()
   @IsOptional()
@@ -178,6 +189,97 @@ export function validateEnvironment(config: Record<string, unknown>): Environmen
         throw new Error('SMS_PROVIDER_WEBHOOK_URL must use HTTPS protocol in production');
       }
     }
+
+    // Validate CORS origins in production
+    const rawCors = validatedConfig.CORS_ORIGIN;
+    if (!rawCors || rawCors.trim() === '') {
+      throw new Error('Production CORS_ORIGIN must be explicitly configured');
+    }
+    const corsOrigins = rawCors
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+
+    if (corsOrigins.length === 0) {
+      throw new Error('Production CORS_ORIGIN must contain at least one valid origin');
+    }
+
+    for (const origin of corsOrigins) {
+      if (origin === '*') {
+        throw new Error('Production CORS_ORIGIN cannot be wildcard "*"');
+      }
+      let parsedOrigin: URL;
+      try {
+        parsedOrigin = new URL(origin);
+      } catch {
+        throw new Error(`Production CORS_ORIGIN contains invalid origin: "${origin}"`);
+      }
+      const isLocalhost =
+        parsedOrigin.protocol === 'http:' &&
+        ['localhost', '127.0.0.1', '::1'].includes(parsedOrigin.hostname);
+      const isHttps = parsedOrigin.protocol === 'https:';
+
+      if (
+        (!isHttps && !isLocalhost) ||
+        parsedOrigin.username !== '' ||
+        parsedOrigin.password !== '' ||
+        parsedOrigin.origin !== origin
+      ) {
+        throw new Error(
+          `Production CORS_ORIGIN contains insecure non-HTTPS origin: "${origin}". Only HTTPS origins or explicit localhost development/test origins are permitted in production.`,
+        );
+      }
+    }
+
+    // Validate TRUST_PROXY in production
+    if (
+      validatedConfig.TRUST_PROXY !== undefined &&
+      validatedConfig.TRUST_PROXY !== null &&
+      validatedConfig.TRUST_PROXY.trim() !== ''
+    ) {
+      const trustProxy = validatedConfig.TRUST_PROXY.trim();
+      const lower = trustProxy.toLowerCase();
+
+      if (lower === 'true' || trustProxy === '*' || lower === 'all') {
+        throw new Error(
+          'TRUST_PROXY cannot be blanket true or wildcard in production. Specify a hop count (e.g. 1) or specific trusted subnet/IP (e.g. loopback).',
+        );
+      }
+
+      if (!isValidTrustProxy(trustProxy)) {
+        throw new Error(
+          `Invalid TRUST_PROXY configuration in production: "${trustProxy}". Must be a hop count, trusted keyword (loopback, linklocal, uniquelocal), IP address, CIDR subnet, or false.`,
+        );
+      }
+    }
   }
   return validatedConfig;
+}
+
+export function isValidTrustProxy(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+  if (['false', '0', 'none', 'disabled'].includes(lower)) return true;
+  if (/^\d+$/.test(trimmed)) {
+    const num = parseInt(trimmed, 10);
+    return num >= 0 && num <= 10;
+  }
+  const parts = trimmed.split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return false;
+
+  const validKeywords = new Set(['loopback', 'linklocal', 'uniquelocal']);
+  return parts.every((part) => {
+    const pLower = part.toLowerCase();
+    if (validKeywords.has(pLower)) return true;
+
+    const [address = '', prefix, extra] = part.split('/');
+    if (extra !== undefined) return false;
+    const version = isIP(address);
+    if (version === 0) return false;
+    if (prefix === undefined) return true;
+    if (!/^\d+$/.test(prefix)) return false;
+    const prefixLength = Number(prefix);
+    return prefixLength >= 0 && prefixLength <= (version === 4 ? 32 : 128);
+  });
 }

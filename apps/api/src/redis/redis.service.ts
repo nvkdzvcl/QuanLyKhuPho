@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { ServiceHealth } from '@quanlykhupho/shared-types';
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
@@ -416,6 +417,58 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         count,
         remainingAttempts: maxAttempts - count,
       };
+    }
+  }
+
+  async ping(timeoutMs = 3000): Promise<ServiceHealth> {
+    if (this.isMemoryMode || !this.client) {
+      return {
+        status: this.isProduction ? 'down' : 'degraded',
+        message: this.isProduction
+          ? 'Redis connection unavailable'
+          : 'In-memory fallback active (Redis is not connected)',
+      };
+    }
+
+    const start = Date.now();
+    let timer: NodeJS.Timeout | null = null;
+
+    try {
+      const pingPromise = this.client.ping();
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error('Redis probe timed out'));
+        }, timeoutMs);
+      });
+
+      const response = await Promise.race([pingPromise, timeoutPromise]);
+      const latencyMs = Date.now() - start;
+
+      if (response === 'PONG') {
+        return {
+          status: 'ok',
+          latencyMs,
+          message: 'Redis connection is healthy',
+        };
+      }
+
+      return {
+        status: 'down',
+        latencyMs,
+        message: 'Redis ping response invalid',
+      };
+    } catch (err) {
+      const latencyMs = Date.now() - start;
+      const isTimeout = err instanceof Error && err.message === 'Redis probe timed out';
+      return {
+        status: 'down',
+        latencyMs,
+        message: isTimeout ? 'Redis check timed out' : 'Redis connection unavailable',
+      };
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
     }
   }
 }

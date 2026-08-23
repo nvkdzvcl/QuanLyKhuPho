@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './core/exceptions/http-exception.filter';
 import { TransformInterceptor } from './core/interceptors/transform.interceptor';
+import { configureTransportSecurity } from './core/transport-security';
 import { SmsWorkerService } from './rabbitmq/sms-publisher.service';
 import { UsersService } from './users/users.service';
 
@@ -63,12 +64,20 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
+  // Enable graceful shutdown hooks for clean termination of services & connections
+  app.enableShutdownHooks();
+
   const configService = app.get(ConfigService);
+  const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+  const isProduction = nodeEnv === 'production';
   const port = configService.get<number>('PORT', 4000);
   const corsOrigin = configService.get<string>(
     'CORS_ORIGIN',
     'http://localhost:3000',
   );
+
+  // Transport security: proxy trust, security headers, HTTPS enforcement, remove X-Powered-By
+  configureTransportSecurity(app, configService);
 
   // Cookie parser middleware for HttpOnly session cookies
   app.use(cookieParser());
@@ -90,7 +99,10 @@ async function bootstrap() {
   );
 
   // CORS configuration from environment
-  const allowedOrigins = corsOrigin.split(',').map((origin) => origin.trim());
+  const allowedOrigins = corsOrigin
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
   app.enableCors({
     origin: allowedOrigins,
     credentials: true,
@@ -105,7 +117,11 @@ async function bootstrap() {
   });
 
   await app.listen(port);
-  logger.log(`QuanLyKhuPho API running on http://localhost:${port}/api`);
+  if (isProduction) {
+    logger.log(`QuanLyKhuPho API server listening on port ${port} (prefix: /api)`);
+  } else {
+    logger.log(`QuanLyKhuPho API running on port ${port} (prefix: /api)`);
+  }
 }
 
 bootstrap().catch((err: unknown) => {
