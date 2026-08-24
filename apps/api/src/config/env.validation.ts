@@ -1,4 +1,4 @@
-import { plainToInstance } from 'class-transformer';
+import { plainToInstance, Type } from 'class-transformer';
 import { IsEnum, IsNumber, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
 import { isIP } from 'node:net';
 
@@ -18,6 +18,7 @@ export class EnvironmentVariables {
   @IsOptional()
   NODE_ENV: Environment = Environment.Development;
 
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   PORT: number = 4000;
@@ -70,10 +71,12 @@ export class EnvironmentVariables {
   @IsOptional()
   SMS_PROVIDER_API_KEY?: string;
 
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   SMS_PROVIDER_TIMEOUT_MS: number = 5000;
 
+  @Type(() => Number)
   @IsNumber()
   @Min(100)
   @Max(5000)

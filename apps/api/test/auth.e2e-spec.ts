@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import cookieParser from 'cookie-parser';
 import { Account, Neighborhood, Prisma, Role, AccountStatus as DbAccountStatus } from '@prisma/client';
@@ -54,6 +55,10 @@ describe('Auth & Account Lifecycle (e2e)', () => {
   ];
 
   beforeAll(async () => {
+    const testConfig = {
+      get: (key: string) => (key === 'NODE_ENV' ? 'test' : undefined),
+    } as ConfigService;
+
     const mockPrisma = {
       $connect: async () => {},
       $disconnect: async () => {},
@@ -124,6 +129,10 @@ describe('Auth & Account Lifecycle (e2e)', () => {
     })
       .overrideProvider(PrismaService)
       .useValue(mockPrisma)
+      .overrideProvider(RedisService)
+      .useValue(new RedisService(testConfig))
+      .overrideProvider(RabbitMQService)
+      .useValue(new RabbitMQService(testConfig))
       .compile();
 
     app = moduleFixture.createNestApplication();

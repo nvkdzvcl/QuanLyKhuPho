@@ -10,6 +10,7 @@ import {
   VerifyOtpResponseDto,
 } from '@quanlykhupho/shared-types';
 import { apiClient, getErrorCode, getErrorMessage } from '../../lib/api-client';
+import { DevSmsInbox } from './dev-sms-inbox';
 
 interface OtpStepProps {
   phoneNumber: string;
@@ -206,6 +207,14 @@ export function OtpStep({
             : 'Gửi lại mã'}
         </Button>
       </div>
+
+      <DevSmsInbox
+        currentPhoneNumber={phoneNumber}
+        onAutofillOtp={(code) => {
+          setOtpCode(code);
+          setError(null);
+        }}
+      />
     </form>
   );
 }

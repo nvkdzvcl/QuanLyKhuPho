@@ -267,7 +267,12 @@ pnpm build
 
 # 6. Kiểm tra tính hợp lệ của Docker Compose
 docker compose -f docker/docker-compose.yml config --quiet
+
+# 7. Kiểm thử Đa trình duyệt, Responsive & Ngân sách Hiệu năng (Playwright E2E - 6 Projects)
+pnpm e2e
 ```
+
+Chi tiết ma trận kiểm thử đa trình duyệt (Chromium, Firefox, WebKit trên 320x568 và 1920x1080), bằng chứng hiệu năng tải trang, kiểm tra chống tràn ngang và danh mục nghiệm thu thiết bị thực tế bắt buộc được quy định tại [Hướng dẫn Nghiệm thu Trình duyệt & Hiệu năng (Browser & Performance Acceptance)](docs/quality/browser-performance-acceptance.md).
 
 ---
 

@@ -104,7 +104,7 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
 
       {/* Notifications Dropdown Drawer */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-0 z-50 mt-2 w-[calc(100vw-2rem)] max-w-96 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl animate-in fade-in zoom-in-95 duration-100">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
             <div className="flex items-center gap-2">
               <h4 className="text-sm font-bold text-slate-900">Thông báo</h4>

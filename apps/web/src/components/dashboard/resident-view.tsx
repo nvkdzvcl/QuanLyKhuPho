@@ -1,110 +1,113 @@
 'use client';
 
-import React from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge } from '@quanlykhupho/ui';
-import { UserDto } from '@quanlykhupho/shared-types';
-
+import React, { useState } from 'react';
+import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@quanlykhupho/ui';
+import { AccountStatus, type UserDto, UserRole } from '@quanlykhupho/shared-types';
+import { useUnreadCount } from '../../hooks/use-notifications';
+import { useAuth } from '../../lib/auth-context';
 import { AnnouncementFeed } from '../announcements/announcement-feed';
+import { CreatePetitionModal } from '../petitions/create-petition-modal';
 import { PetitionList } from '../petitions/petition-list';
+import { getResidentNavigationItems, normalizeSectionForRole } from './dashboard-navigation';
+import { ResidentOverview } from './resident-overview';
+import { ResidentWorkspace } from './resident-workspace';
 
 interface ResidentViewProps {
   user: UserDto;
 }
-export function ResidentView({ user }: ResidentViewProps) {
+
+function ResidentAccount({ user }: ResidentViewProps) {
+  const { logout } = useAuth();
+  const rows = [
+    { label: 'Họ và tên', value: user.fullName },
+    { label: 'Số điện thoại', value: user.maskedPhone },
+    { label: 'Địa chỉ nơi ở', value: user.address || 'Chưa cập nhật' },
+    { label: 'Khu phố', value: user.neighborhood?.name || 'Chưa phân khu phố' },
+    { label: 'Phường', value: user.neighborhood?.ward || 'Chưa cập nhật' },
+    { label: 'Quận / Huyện', value: user.neighborhood?.district || 'Chưa cập nhật' },
+  ];
+
   return (
-    <div className="space-y-8">
-      {/* Welcome Banner */}
-      <div className="rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white shadow-lg sm:p-8">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <span className="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-semibold backdrop-blur-sm">
-              Cổng thông tin Cư dân
-            </span>
-            <h2 className="mt-2 text-2xl font-extrabold sm:text-3xl">
-              Xin chào, {user.fullName}!
-            </h2>
-            <p className="mt-1 text-sm text-blue-100">
-              Bạn đang sinh sống tại{' '}
-              <strong>{user.neighborhood?.name || 'Khu phố'}</strong>, {user.neighborhood?.ward},{' '}
-              {user.neighborhood?.district}.
-            </p>
+    <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Thông tin tài khoản Cư dân</CardTitle>
+              <CardDescription>Dữ liệu cư trú đã được đối chiếu với hồ sơ đăng ký</CardDescription>
+            </div>
+            <Badge variant={user.status === AccountStatus.ACTIVE ? 'success' : 'warning'}>{user.status === AccountStatus.ACTIVE ? 'Đang hoạt động' : user.status}</Badge>
           </div>
-          <Badge variant="success" className="bg-emerald-500/20 text-emerald-100 border-emerald-400/30 text-xs px-3 py-1">
-            Tài khoản đã kích hoạt
-          </Badge>
-        </div>
-      </div>
+        </CardHeader>
+        <CardContent>
+          <dl className="divide-y divide-slate-100">
+            {rows.map((row) => (
+              <div key={row.label} className="grid gap-1 py-3 text-sm sm:grid-cols-[160px_1fr] sm:gap-4">
+                <dt className="text-slate-500">{row.label}</dt>
+                <dd className="font-semibold text-slate-950 sm:text-right">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </CardContent>
+      </Card>
 
-      {/* Announcements Feed Section */}
-      <AnnouncementFeed user={user} />
-
-      {/* Petitions Section for Resident */}
-      <PetitionList user={user} />
-
-      {/* Resident Profile & Household Info Card */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div className="space-y-5">
         <Card>
           <CardHeader>
-            <CardTitle>Thông tin Cư trú của bạn</CardTitle>
-            <CardDescription>Dữ liệu đã được đối chiếu và xác thực</CardDescription>
+            <CardTitle>Bảo vệ thông tin cá nhân</CardTitle>
+            <CardDescription>Hệ thống chỉ hiển thị dữ liệu nhạy cảm ở dạng che một phần</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex justify-between border-b border-slate-100 pb-2">
-              <span className="text-slate-500">Họ và tên:</span>
-              <span className="font-semibold text-slate-900">{user.fullName}</span>
-            </div>
-            <div className="flex justify-between border-b border-slate-100 pb-2">
-              <span className="text-slate-500">Số điện thoại (đã mã hóa):</span>
-              <span className="font-mono font-semibold text-slate-900">{user.maskedPhone}</span>
-            </div>
-            <div className="flex justify-between border-b border-slate-100 pb-2">
-              <span className="text-slate-500">Địa chỉ nơi ở:</span>
-              <span className="font-semibold text-slate-900 text-right">{user.address || 'Chưa cập nhật'}</span>
-            </div>
-            <div className="flex justify-between border-b border-slate-100 pb-2">
-              <span className="text-slate-500">Khu phố:</span>
-              <span className="font-semibold text-blue-600">{user.neighborhood?.name}</span>
-            </div>
-            <div className="flex justify-between pb-1">
-              <span className="text-slate-500">Trạng thái:</span>
-              <Badge variant="success">Hoạt động (Active)</Badge>
-            </div>
+          <CardContent className="space-y-3 text-sm text-slate-600">
+            <p className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-blue-800">Số điện thoại của bạn được hiển thị dưới dạng <strong>{user.maskedPhone}</strong>.</p>
+            <p>Không chia sẻ mã OTP hoặc phiên đăng nhập cho bất kỳ ai, kể cả người tự xưng là cán bộ quản trị.</p>
           </CardContent>
         </Card>
-
-        {/* Community Utilities Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Dịch vụ Tiện ích Khu phố</CardTitle>
-            <CardDescription>Các tính năng số hóa dành cho cư dân</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 transition hover:bg-slate-100/80">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 font-bold">
-                  📢
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900">Bảng tin & Thông báo</h4>
-                  <p className="text-xs text-slate-500">Đã cập nhật bảng tin và tải tệp đính kèm trực tiếp.</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 transition hover:bg-slate-100/80">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-700 font-bold">
-                  💬
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900">Đóng góp ý kiến & Bình luận</h4>
-                  <p className="text-xs text-slate-500">Tham gia trao đổi văn minh trên các thông báo khu phố.</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <Button variant="outline" size="md" onClick={() => logout()} className="w-full border-red-200 text-red-700 hover:bg-red-50">Đăng xuất khỏi tài khoản</Button>
       </div>
     </div>
+  );
+}
+
+export function ResidentView({ user }: ResidentViewProps) {
+  const [activeSection, setActiveSection] = useState<string>('overview');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { data: unread } = useUnreadCount();
+  const currentSection = normalizeSectionForRole(UserRole.RESIDENT, activeSection);
+  const navItems = getResidentNavigationItems({ unreadAnnouncementsCount: unread?.unreadCount || 0 });
+
+  const closeCreatePetition = () => setActiveSection('petitions');
+
+  return (
+    <ResidentWorkspace user={user} items={navItems} activeSection={currentSection} onSectionChange={setActiveSection}>
+      {toastMessage && <Alert variant="success" message={toastMessage} onClose={() => setToastMessage(null)} />}
+
+      {currentSection === 'overview' && <ResidentOverview user={user} onNavigateSection={setActiveSection} />}
+
+      {currentSection === 'announcements' && <AnnouncementFeed user={user} />}
+
+      {currentSection === 'petitions' && (
+        <PetitionList user={user} title="Kiến nghị của tôi" description="Theo dõi tiến trình tiếp nhận, xử lý và phản hồi từ ban quản lý" />
+      )}
+
+      {currentSection === 'create-petition' && (
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-6 text-center">
+          <h2 className="text-lg font-bold text-blue-950">Biểu mẫu gửi kiến nghị đang mở</h2>
+          <p className="mt-1 text-sm text-blue-700">Điền đầy đủ nội dung và hình ảnh minh chứng để ban quản lý tiếp nhận nhanh hơn.</p>
+          <Button variant="primary" size="sm" onClick={() => setActiveSection('petitions')} className="mt-4">Đóng biểu mẫu</Button>
+        </div>
+      )}
+
+      {currentSection === 'account' && <ResidentAccount user={user} />}
+
+      <CreatePetitionModal
+        isOpen={currentSection === 'create-petition'}
+        onClose={closeCreatePetition}
+        user={user}
+        onCreated={() => {
+          setToastMessage('Đã gửi kiến nghị mới thành công!');
+          setActiveSection('petitions');
+        }}
+      />
+    </ResidentWorkspace>
   );
 }

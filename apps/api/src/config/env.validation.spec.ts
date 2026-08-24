@@ -278,4 +278,43 @@ describe('validateEnvironment', () => {
       }),
     ).toThrow('Environment validation failed');
   });
+
+  it('converts numeric string environment values for PORT, SMS_PROVIDER_TIMEOUT_MS, and HEALTH_PROBE_TIMEOUT_MS to numbers', () => {
+    const config = validateEnvironment({
+      NODE_ENV: Environment.Development,
+      PORT: '4000',
+      SMS_PROVIDER_TIMEOUT_MS: '5000',
+      HEALTH_PROBE_TIMEOUT_MS: '1000',
+    });
+
+    expect(config.PORT).toBe(4000);
+    expect(typeof config.PORT).toBe('number');
+    expect(config.SMS_PROVIDER_TIMEOUT_MS).toBe(5000);
+    expect(typeof config.SMS_PROVIDER_TIMEOUT_MS).toBe('number');
+    expect(config.HEALTH_PROBE_TIMEOUT_MS).toBe(1000);
+    expect(typeof config.HEALTH_PROBE_TIMEOUT_MS).toBe('number');
+  });
+
+  it('fails validation when numeric environment variables receive non-numeric strings', () => {
+    expect(() =>
+      validateEnvironment({
+        NODE_ENV: Environment.Development,
+        PORT: 'invalid_port',
+      }),
+    ).toThrow('Environment validation failed');
+
+    expect(() =>
+      validateEnvironment({
+        NODE_ENV: Environment.Development,
+        SMS_PROVIDER_TIMEOUT_MS: 'not_a_number',
+      }),
+    ).toThrow('Environment validation failed');
+
+    expect(() =>
+      validateEnvironment({
+        NODE_ENV: Environment.Development,
+        HEALTH_PROBE_TIMEOUT_MS: 'not_a_number',
+      }),
+    ).toThrow('Environment validation failed');
+  });
 });

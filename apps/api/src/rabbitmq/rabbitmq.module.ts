@@ -8,14 +8,18 @@ import {
   SmsWorkerService,
   WebhookSmsProvider,
 } from './sms-publisher.service';
+import { DevSmsInboxService } from './dev-sms-inbox.service';
+import { DevSmsInboxController } from './dev-sms-inbox.controller';
 import { CryptoService } from '../security/crypto.service';
 import { RedisModule } from '../redis/redis.module';
 
 @Global()
 @Module({
   imports: [RedisModule],
+  controllers: [DevSmsInboxController],
   providers: [
     RabbitMQService,
+    DevSmsInboxService,
     SmsPublisherService,
     CryptoService,
     {
@@ -36,6 +40,12 @@ import { RedisModule } from '../redis/redis.module';
     },
     SmsWorkerService,
   ],
-  exports: [RabbitMQService, SmsPublisherService, SmsWorkerService, SMS_PROVIDER_TOKEN],
+  exports: [
+    RabbitMQService,
+    DevSmsInboxService,
+    SmsPublisherService,
+    SmsWorkerService,
+    SMS_PROVIDER_TOKEN,
+  ],
 })
 export class RabbitMQModule {}

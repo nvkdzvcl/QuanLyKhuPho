@@ -11,6 +11,7 @@ import {
 import { CryptoService } from '../security/crypto.service';
 import { isValidPhoneNumber } from '../security/phone-utils';
 import { RedisService } from '../redis/redis.service';
+import { DevSmsInboxService } from './dev-sms-inbox.service';
 
 export type SmsCommandType = 'OTP' | 'ACCOUNT_STATUS_UPDATE';
 
@@ -254,6 +255,8 @@ export class SmsPublisherService {
   constructor(
     private readonly rabbitmqService: RabbitMQService,
     private readonly cryptoService: CryptoService,
+    @Optional()
+    private readonly devSmsInboxService?: DevSmsInboxService,
   ) {}
 
   /**
@@ -284,6 +287,21 @@ export class SmsPublisherService {
 
     await this.rabbitmqService.publish(SMS_QUEUE_NAME, JSON.stringify(envelope));
     this.logger.log(`Published encrypted OTP SMS command to queue (commandId: ${commandId})`);
+
+    // Capture in development-only OTP inbox after publish resolves successfully
+    if (this.devSmsInboxService) {
+      try {
+        this.devSmsInboxService.recordOtp(
+          commandId,
+          normalizedPhone,
+          otpCode,
+          createdAt,
+        );
+      } catch {
+        // Safe: development inbox recording should never disrupt publishOtpSms
+      }
+    }
+
     return commandId;
   }
 

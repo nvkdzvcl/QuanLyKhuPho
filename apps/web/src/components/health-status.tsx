@@ -2,13 +2,19 @@
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { HealthResponseDto, isSystemHealthy } from '@quanlykhupho/shared-types';
+import {
+  ApiResponseEnvelope,
+  HealthResponseDto,
+  HealthStatus,
+  ServiceHealth,
+  isSystemHealthy,
+} from '@quanlykhupho/shared-types';
 import { Button } from '@quanlykhupho/ui';
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
-const fallbackHealth: HealthResponseDto = {
+export const fallbackHealth: HealthResponseDto = {
   status: 'down',
   version: '0.1.0',
   timestamp: new Date().toISOString(),
@@ -20,21 +26,94 @@ const fallbackHealth: HealthResponseDto = {
   },
 };
 
-async function fetchApiHealth(): Promise<HealthResponseDto> {
-  const res = await fetch(`${API_BASE_URL}/health`);
-  const payload = (await res.json()) as HealthResponseDto;
+function isServiceHealth(value: unknown): value is ServiceHealth {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const status = (value as { status?: unknown }).status;
+  return status === 'ok' || status === 'degraded' || status === 'down';
+}
+
+/**
+ * Parses and validates raw health payload from API response envelope or direct DTO.
+ * Throws an error if payload cannot be resolved into a valid HealthResponseDto.
+ */
+export function parseHealthResponse(
+  payload: ApiResponseEnvelope<HealthResponseDto> | unknown,
+): HealthResponseDto {
+  if (typeof payload !== 'object' || payload === null) {
+    throw new Error('Phản hồi trạng thái hệ thống không hợp lệ');
+  }
+
+  const record = payload as Record<string, unknown>;
+  const rawData =
+    typeof record.data === 'object' && record.data !== null
+      ? record.data
+      : payload;
+
+  if (typeof rawData !== 'object' || rawData === null) {
+    throw new Error('Dữ liệu trạng thái hệ thống không hợp lệ');
+  }
+
+  const candidate = rawData as Record<string, unknown>;
+  const status = candidate.status;
+  if (status !== 'ok' && status !== 'degraded' && status !== 'down') {
+    throw new Error('Trạng thái hệ thống không hợp lệ');
+  }
+
+  if (typeof candidate.services !== 'object' || candidate.services === null) {
+    throw new Error('Thông tin dịch vụ hạ tầng không hợp lệ');
+  }
+
+  const servicesRecord = candidate.services as Record<string, unknown>;
+  const database = isServiceHealth(servicesRecord.database)
+    ? servicesRecord.database
+    : undefined;
+  const redis = isServiceHealth(servicesRecord.redis)
+    ? servicesRecord.redis
+    : undefined;
+  const rabbitmq = isServiceHealth(servicesRecord.rabbitmq)
+    ? servicesRecord.rabbitmq
+    : undefined;
+
+  return {
+    status: status as HealthStatus,
+    version:
+      typeof candidate.version === 'string' ? candidate.version : '0.1.0',
+    timestamp:
+      typeof candidate.timestamp === 'string'
+        ? candidate.timestamp
+        : new Date().toISOString(),
+    environment:
+      typeof candidate.environment === 'string'
+        ? candidate.environment
+        : 'Không xác định',
+    services: {
+      database,
+      redis,
+      rabbitmq,
+    },
+  };
+}
+
+export async function fetchApiHealth(
+  baseUrl: string = API_BASE_URL,
+): Promise<HealthResponseDto> {
+  const res = await fetch(`${baseUrl}/health`);
   if (!res.ok && res.status !== 503) {
     throw new Error(`HTTP error! status: ${res.status}`);
   }
-  return payload;
+  const payload = (await res.json()) as unknown;
+  return parseHealthResponse(payload);
 }
 
 export function HealthStatusWidget() {
-  const { data, error, isLoading, refetch, isFetching } = useQuery<HealthResponseDto>({
-    queryKey: ['system-health'],
-    queryFn: fetchApiHealth,
-    retry: 1,
-  });
+  const { data, error, isLoading, refetch, isFetching } =
+    useQuery<HealthResponseDto>({
+      queryKey: ['system-health'],
+      queryFn: () => fetchApiHealth(),
+      retry: 1,
+    });
 
   const currentHealth = data ?? fallbackHealth;
   const isHealthy = isSystemHealthy(currentHealth);
@@ -111,21 +190,27 @@ export function HealthStatusWidget() {
           <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-white p-3 shadow-2xs">
             <span className="text-sm font-medium text-slate-700">PostgreSQL</span>
             <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
-              {currentHealth.services.database?.status === 'ok' ? 'Sẵn sàng' : 'Chưa kết nối'}
+              {currentHealth.services?.database?.status === 'ok'
+                ? 'Sẵn sàng'
+                : 'Chưa kết nối'}
             </span>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-white p-3 shadow-2xs">
             <span className="text-sm font-medium text-slate-700">Redis Cache</span>
             <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
-              {currentHealth.services.redis?.status === 'ok' ? 'Sẵn sàng' : 'Chưa kết nối'}
+              {currentHealth.services?.redis?.status === 'ok'
+                ? 'Sẵn sàng'
+                : 'Chưa kết nối'}
             </span>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-white p-3 shadow-2xs">
             <span className="text-sm font-medium text-slate-700">RabbitMQ</span>
             <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
-              {currentHealth.services.rabbitmq?.status === 'ok' ? 'Sẵn sàng' : 'Chưa kết nối'}
+              {currentHealth.services?.rabbitmq?.status === 'ok'
+                ? 'Sẵn sàng'
+                : 'Chưa kết nối'}
             </span>
           </div>
         </div>

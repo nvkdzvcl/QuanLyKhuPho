@@ -13,3 +13,4 @@ export * from './resident-profiles';
 export * from './political-social-profiles';
 export * from './neighborhood-activities';
 export * from './exports';
+export * from './dev-sms';

@@ -83,7 +83,7 @@ export function PhoneStep({ onOtpSent }: PhoneStepProps) {
       <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
         <p className="font-medium text-slate-700">Lưu ý an toàn thông tin:</p>
         <p className="mt-0.5">
-          Số điện thoại của bạn được mã hóa AES-256 an toàn. Không chia sẻ mã OTP cho bất kỳ ai.
+          Số điện thoại của bạn được hệ thống bảo vệ. Không chia sẻ mã OTP cho bất kỳ ai.
         </p>
       </div>
     </form>

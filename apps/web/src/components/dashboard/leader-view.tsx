@@ -52,7 +52,6 @@ export function LeaderView({ user }: LeaderViewProps) {
     isLoading,
     isError,
     error,
-    refetch,
   } = usePendingResidents();
 
   const approveMutation = useApproveResident();
@@ -152,27 +151,17 @@ export function LeaderView({ user }: LeaderViewProps) {
 
   return (
     <RoleWorkspace
-      title={user.neighborhood?.name || 'Khu phố trực thuộc'}
+      user={user}
+      title={`Tổng quan ${user.neighborhood?.name || 'Khu phố'}`}
       subtitle={
         <span>
           Trưởng khu phố: <strong>{user.fullName}</strong> ({user.maskedPhone}) • {user.neighborhood?.ward || 'Địa bàn phụ trách'}
         </span>
       }
-      badgeText="Trang quản trị Trưởng Khu Phố"
-      bannerGradient="from-amber-600 to-orange-600"
+      badgeText="Trưởng khu phố"
       items={navItems}
       activeSection={currentSection}
       onSectionChange={setActiveSection}
-      headerActions={
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => refetch()}
-          className="border-white/40 bg-white/10 text-white hover:bg-white/20 text-xs font-semibold"
-        >
-          Làm mới dữ liệu
-        </Button>
-      }
     >
       {/* Toast Feedback Alert */}
       {toastFeedback && (
@@ -196,11 +185,6 @@ export function LeaderView({ user }: LeaderViewProps) {
             setRejectingResident(res);
             setRejectReason('');
             setRejectError(null);
-          }}
-          onOpenLockModal={(res) => {
-            setLockingResident(res);
-            setLockReason('');
-            setLockError(null);
           }}
           isApproving={approveMutation.isPending}
           onNavigateSection={(sectionId) => setActiveSection(sectionId)}

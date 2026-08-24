@@ -3,6 +3,7 @@ import { UserRole } from '@quanlykhupho/shared-types';
 import {
   getLeaderNavigationItems,
   getOfficerNavigationItems,
+  getResidentNavigationItems,
   getNavigationItemsForRole,
   getDefaultSectionForRole,
   isValidSectionForRole,
@@ -21,11 +22,11 @@ describe('Dashboard Navigation Configuration & Contracts', () => {
       expect(sectionIds).toEqual([
         'overview',
         'moderation',
+        'resident-profiles',
         'announcements',
         'petitions',
-        'resident-profiles',
-        'political-social',
         'activities',
+        'political-social',
         'exports',
       ]);
     });
@@ -85,12 +86,12 @@ describe('Dashboard Navigation Configuration & Contracts', () => {
         'overview',
         'analytics',
         'leaders',
-        'reports',
         'announcements',
         'petitions',
         'resident-profiles',
-        'political-social',
         'activities',
+        'reports',
+        'political-social',
         'pending-residents',
       ]);
     });
@@ -139,14 +140,31 @@ describe('Dashboard Navigation Configuration & Contracts', () => {
       expect(items).toEqual(getOfficerNavigationItems());
     });
 
-    it('should return single overview item for resident or unhandled role', () => {
+    it('should return the complete resident navigation', () => {
       const itemsResident = getNavigationItemsForRole(UserRole.RESIDENT);
-      expect(itemsResident).toHaveLength(1);
-      expect(itemsResident[0]?.id).toBe('overview');
+      expect(itemsResident).toEqual(getResidentNavigationItems());
+      expect(itemsResident.map((item) => item.id)).toEqual([
+        'overview',
+        'announcements',
+        'create-petition',
+        'petitions',
+        'account',
+      ]);
+    });
 
+    it('should return a safe overview fallback for an unhandled role', () => {
       const itemsUnknown = getNavigationItemsForRole('unknown_role');
       expect(itemsUnknown).toHaveLength(1);
       expect(itemsUnknown[0]?.id).toBe('overview');
+    });
+
+    it('should expose an unread badge only when residents have notifications', () => {
+      const items = getResidentNavigationItems({ unreadAnnouncementsCount: 4 });
+      expect(items.find((item) => item.id === 'announcements')?.badge).toEqual({
+        count: 4,
+        variant: 'destructive',
+      });
+      expect(getResidentNavigationItems().find((item) => item.id === 'announcements')?.badge).toBeUndefined();
     });
   });
 
@@ -159,6 +177,15 @@ describe('Dashboard Navigation Configuration & Contracts', () => {
   });
 
   describe('isValidSectionForRole', () => {
+    it('should accept resident sections and reject management-only sections', () => {
+      expect(isValidSectionForRole(UserRole.RESIDENT, 'overview')).toBe(true);
+      expect(isValidSectionForRole(UserRole.RESIDENT, 'announcements')).toBe(true);
+      expect(isValidSectionForRole(UserRole.RESIDENT, 'create-petition')).toBe(true);
+      expect(isValidSectionForRole(UserRole.RESIDENT, 'petitions')).toBe(true);
+      expect(isValidSectionForRole(UserRole.RESIDENT, 'account')).toBe(true);
+      expect(isValidSectionForRole(UserRole.RESIDENT, 'moderation')).toBe(false);
+    });
+
     it('should return true for valid sections of Leader role', () => {
       expect(isValidSectionForRole(UserRole.LEADER, 'overview')).toBe(true);
       expect(isValidSectionForRole(UserRole.LEADER, 'moderation')).toBe(true);
@@ -252,7 +279,7 @@ describe('Dashboard Navigation Configuration & Contracts', () => {
       const item = getSectionById(UserRole.LEADER, 'moderation');
       expect(item).toBeDefined();
       expect(item?.id).toBe('moderation');
-      expect(item?.label).toBe('Xét duyệt tài khoản');
+      expect(item?.label).toBe('Tài khoản cư dân');
     });
 
     it('should return matching item metadata when passing an alias', () => {
@@ -271,12 +298,12 @@ describe('Dashboard Navigation Configuration & Contracts', () => {
       const item = getSectionById(UserRole.OFFICER, 'analytics');
       expect(item).toBeDefined();
       expect(item?.id).toBe('analytics');
-      expect(item?.label).toBe('Phân tích & Chi tiết Khu phố');
+      expect(item?.label).toBe('Khu phố');
 
       const leaderItem = getSectionById(UserRole.OFFICER, 'leaders');
       expect(leaderItem).toBeDefined();
       expect(leaderItem?.id).toBe('leaders');
-      expect(leaderItem?.label).toBe('Quản lý Trưởng khu phố');
+      expect(leaderItem?.label).toBe('Quản lý Tổ trưởng');
     });
   });
 

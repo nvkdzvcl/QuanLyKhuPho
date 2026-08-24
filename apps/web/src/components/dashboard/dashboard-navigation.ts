@@ -23,7 +23,17 @@ export type OfficerSectionId =
   | 'activities'
   | 'pending-residents';
 
-export type DashboardSectionId = LeaderSectionId | OfficerSectionId;
+export type ResidentSectionId =
+  | 'overview'
+  | 'announcements'
+  | 'create-petition'
+  | 'petitions'
+  | 'account';
+
+export type DashboardSectionId =
+  | ResidentSectionId
+  | LeaderSectionId
+  | OfficerSectionId;
 
 export interface NavBadgeConfig {
   count: number;
@@ -47,7 +57,9 @@ export interface NavigationItem {
     | 'bar-chart'
     | 'user-plus'
     | 'shield'
-    | 'folder';
+    | 'folder'
+    | 'plus-square'
+    | 'account';
   badge?: NavBadgeConfig;
   group?: string;
 }
@@ -83,78 +95,14 @@ export function getLeaderNavigationItems(
   const petitionCount = counts?.pendingPetitionsCount ?? 0;
 
   return [
-    {
-      id: 'overview',
-      label: 'Tổng quan khu phố',
-      shortLabel: 'Tổng quan',
-      description: 'Hàng đợi công việc và tình hình khu phố',
-      iconName: 'overview',
-      group: 'Tổng quan',
-    },
-    {
-      id: 'moderation',
-      label: 'Xét duyệt tài khoản',
-      shortLabel: 'Duyệt tài khoản',
-      description: 'Phê duyệt hoặc từ chối cư dân đăng ký mới',
-      iconName: 'user-check',
-      badge:
-        pendingCount > 0
-          ? { count: pendingCount, variant: 'warning' }
-          : undefined,
-      group: 'Công việc ưu tiên',
-    },
-    {
-      id: 'announcements',
-      label: 'Bảng tin & Thông báo',
-      shortLabel: 'Bảng tin',
-      description: 'Đăng tin tức, hướng dẫn và điều hành thảo luận',
-      iconName: 'megaphone',
-      group: 'Nghiệp vụ khu phố',
-    },
-    {
-      id: 'petitions',
-      label: 'Ý kiến & Kiến nghị',
-      shortLabel: 'Kiến nghị',
-      description: 'Tiếp nhận và xử lý phản ánh từ cư dân',
-      iconName: 'inbox',
-      badge:
-        petitionCount > 0
-          ? { count: petitionCount, variant: 'info' }
-          : undefined,
-      group: 'Nghiệp vụ khu phố',
-    },
-    {
-      id: 'resident-profiles',
-      label: 'Hồ sơ Cư dân & Hộ khẩu',
-      shortLabel: 'Hồ sơ cư dân',
-      description: 'Tra cứu thông tin cư trú và trích xuất nhân khẩu',
-      iconName: 'users',
-      group: 'Quản lý cư dân',
-    },
-    {
-      id: 'political-social',
-      label: 'Chính trị - Xã hội',
-      shortLabel: 'Chính trị - XH',
-      description: 'Hồ sơ Đảng viên, đoàn thể và đối tượng chính sách',
-      iconName: 'award',
-      group: 'Quản lý cư dân',
-    },
-    {
-      id: 'activities',
-      label: 'Sổ hoạt động Khu phố',
-      shortLabel: 'Sổ hoạt động',
-      description: 'Theo dõi sự kiện, phong trào và điểm danh tham gia',
-      iconName: 'book',
-      group: 'Quản lý cư dân',
-    },
-    {
-      id: 'exports',
-      label: 'Báo cáo & Xuất dữ liệu',
-      shortLabel: 'Xuất dữ liệu',
-      description: 'Xuất danh sách và sổ hoạt động dạng CSV/Excel',
-      iconName: 'file-text',
-      group: 'Báo cáo',
-    },
+    { id: 'overview', label: 'Tổng quan Khu phố', shortLabel: 'Tổng quan', description: 'Hàng đợi công việc và tình hình khu phố', iconName: 'overview', group: 'Quản lý' },
+    { id: 'moderation', label: 'Tài khoản cư dân', shortLabel: 'Tài khoản cư dân', description: 'Phê duyệt hoặc từ chối cư dân đăng ký mới', iconName: 'user-check', badge: pendingCount > 0 ? { count: pendingCount, variant: 'warning' } : undefined, group: 'Quản lý' },
+    { id: 'resident-profiles', label: 'Hồ sơ dân cư', shortLabel: 'Hồ sơ dân cư', description: 'Tra cứu thông tin cư trú và trích xuất nhân khẩu', iconName: 'users', group: 'Quản lý' },
+    { id: 'announcements', label: 'Thông báo', shortLabel: 'Thông báo', description: 'Đăng tin tức, hướng dẫn và điều hành thảo luận', iconName: 'megaphone', group: 'Quản lý' },
+    { id: 'petitions', label: 'Kiến nghị', shortLabel: 'Kiến nghị', description: 'Tiếp nhận và xử lý phản ánh từ cư dân', iconName: 'inbox', badge: petitionCount > 0 ? { count: petitionCount, variant: 'info' } : undefined, group: 'Quản lý' },
+    { id: 'activities', label: 'Sổ hoạt động', shortLabel: 'Sổ hoạt động', description: 'Theo dõi sự kiện, phong trào và điểm danh tham gia', iconName: 'book', group: 'Quản lý' },
+    { id: 'political-social', label: 'Chính trị - Xã hội', shortLabel: 'Chính trị - Xã hội', description: 'Hồ sơ Đảng viên, đoàn thể và đối tượng chính sách', iconName: 'award', group: 'Quản lý' },
+    { id: 'exports', label: 'Báo cáo', shortLabel: 'Báo cáo', description: 'Xuất danh sách và sổ hoạt động dạng CSV/Excel', iconName: 'bar-chart', group: 'Quản lý' },
   ];
 }
 
@@ -167,90 +115,34 @@ export function getOfficerNavigationItems(
   const pendingCount = counts?.pendingResidentsCount ?? 0;
 
   return [
-    {
-      id: 'overview',
-      label: 'Tổng quan Toàn phường',
-      shortLabel: 'Tổng quan',
-      description: 'Chỉ số giám sát và thống kê toàn phường',
-      iconName: 'overview',
-      group: 'Giám sát',
-    },
-    {
-      id: 'analytics',
-      label: 'Phân tích & Chi tiết Khu phố',
-      shortLabel: 'Phân tích',
-      description: 'Số liệu chi tiết từng tổ dân phố / khu phố',
-      iconName: 'bar-chart',
-      group: 'Giám sát',
-    },
-    {
-      id: 'leaders',
-      label: 'Quản lý Trưởng khu phố',
-      shortLabel: 'Trưởng khu phố',
-      description: 'Danh sách và bổ nhiệm Trưởng khu phố mới',
-      iconName: 'user-plus',
-      group: 'Nhân sự',
-    },
-    {
-      id: 'reports',
-      label: 'Báo cáo định kỳ (FR-20)',
-      shortLabel: 'Báo cáo định kỳ',
-      description: 'Xuất báo cáo tháng, quý và năm toàn phường',
-      iconName: 'file-text',
-      group: 'Báo cáo',
-    },
-    {
-      id: 'announcements',
-      label: 'Bảng tin Cấp phường',
-      shortLabel: 'Bảng tin',
-      description: 'Phát hành thông báo diện rộng tới toàn bộ khu phố',
-      iconName: 'megaphone',
-      group: 'Điều hành',
-    },
-    {
-      id: 'petitions',
-      label: 'Giám sát Kiến nghị',
-      shortLabel: 'Kiến nghị',
-      description: 'Theo dõi tiến độ giải quyết kiến nghị của khu phố',
-      iconName: 'inbox',
-      group: 'Điều hành',
-    },
-    {
-      id: 'resident-profiles',
-      label: 'Hồ sơ Cư dân Toàn phường',
-      shortLabel: 'Hồ sơ cư dân',
-      description: 'Tra cứu nhân khẩu và trích xuất dữ liệu phường',
-      iconName: 'users',
-      group: 'Dữ liệu',
-    },
-    {
-      id: 'political-social',
-      label: 'Chính trị - Xã hội Toàn phường',
-      shortLabel: 'Chính trị - XH',
-      description: 'Thống kê Đảng viên và đoàn thể các khu phố',
-      iconName: 'award',
-      group: 'Dữ liệu',
-    },
-    {
-      id: 'activities',
-      label: 'Sổ hoạt động Toàn phường',
-      shortLabel: 'Sổ hoạt động',
-      description: 'Tổng hợp phong trào các khu phố trực thuộc',
-      iconName: 'book',
-      group: 'Dữ liệu',
-    },
-    {
-      id: 'pending-residents',
-      label: 'Giám sát Hồ sơ Chờ duyệt',
-      shortLabel: 'Hồ sơ chờ',
-      description: 'Theo dõi hàng đợi xét duyệt của các Trưởng khu phố',
-      iconName: 'user-check',
-      badge:
-        pendingCount > 0
-          ? { count: pendingCount, variant: 'info' }
-          : undefined,
-      group: 'Giám sát',
-    },
+    { id: 'overview', label: 'Tổng quan Phường', shortLabel: 'Tổng quan', description: 'Chỉ số giám sát và thống kê toàn phường', iconName: 'overview', group: 'Quản lý' },
+    { id: 'analytics', label: 'Khu phố', shortLabel: 'Khu phố', description: 'Số liệu chi tiết từng tổ dân phố / khu phố', iconName: 'overview', group: 'Quản lý' },
+    { id: 'leaders', label: 'Quản lý Tổ trưởng', shortLabel: 'Quản lý Tổ trưởng', description: 'Danh sách và bổ nhiệm Trưởng khu phố mới', iconName: 'user-plus', group: 'Quản lý' },
+    { id: 'announcements', label: 'Thông báo', shortLabel: 'Thông báo', description: 'Phát hành thông báo diện rộng tới toàn bộ khu phố', iconName: 'megaphone', group: 'Quản lý' },
+    { id: 'petitions', label: 'Kiến nghị', shortLabel: 'Kiến nghị', description: 'Theo dõi tiến độ giải quyết kiến nghị của khu phố', iconName: 'inbox', group: 'Quản lý' },
+    { id: 'resident-profiles', label: 'Hồ sơ dân cư', shortLabel: 'Hồ sơ dân cư', description: 'Tra cứu nhân khẩu và trích xuất dữ liệu phường', iconName: 'file-text', group: 'Quản lý' },
+    { id: 'activities', label: 'Hoạt động', shortLabel: 'Hoạt động', description: 'Tổng hợp phong trào các khu phố trực thuộc', iconName: 'book', group: 'Quản lý' },
+    { id: 'reports', label: 'Báo cáo', shortLabel: 'Báo cáo', description: 'Xuất báo cáo tháng, quý và năm toàn phường', iconName: 'bar-chart', group: 'Quản lý' },
+    { id: 'political-social', label: 'Chính trị - Xã hội', shortLabel: 'Chính trị - Xã hội', description: 'Thống kê Đảng viên và đoàn thể các khu phố', iconName: 'award', group: 'Quản lý' },
+    { id: 'pending-residents', label: 'Hồ sơ chờ duyệt', shortLabel: 'Hồ sơ chờ duyệt', description: 'Theo dõi hàng đợi xét duyệt của các Trưởng khu phố', iconName: 'user-check', badge: pendingCount > 0 ? { count: pendingCount, variant: 'info' } : undefined, group: 'Quản lý' },
+  ];
+}
+
+/**
+ * Returns the resident-facing navigation in the order used on desktop.
+ * Mobile presents the create action from the home CTA and groups it with petitions.
+ */
+export function getResidentNavigationItems(
+  counts?: RoleNavigationCounts,
+): NavigationItem[] {
+  const unreadCount = counts?.unreadAnnouncementsCount ?? 0;
+
+  return [
+    { id: 'overview', label: 'Trang chủ Cư dân', shortLabel: 'Trang chủ', description: 'Thông tin mới và tiến độ kiến nghị của bạn', iconName: 'overview', group: 'Cư dân' },
+    { id: 'announcements', label: 'Thông báo', shortLabel: 'Thông báo', description: 'Tin tức từ khu phố và phường', iconName: 'megaphone', badge: unreadCount > 0 ? { count: unreadCount, variant: 'destructive' } : undefined, group: 'Cư dân' },
+    { id: 'create-petition', label: 'Gửi kiến nghị', shortLabel: 'Gửi kiến nghị', description: 'Gửi phản ánh mới tới ban quản lý', iconName: 'plus-square', group: 'Cư dân' },
+    { id: 'petitions', label: 'Kiến nghị của tôi', shortLabel: 'Kiến nghị của tôi', description: 'Theo dõi tiến trình và phản hồi', iconName: 'file-text', group: 'Cư dân' },
+    { id: 'account', label: 'Tài khoản', shortLabel: 'Tài khoản', description: 'Thông tin cư trú và tài khoản', iconName: 'account', group: 'Cư dân' },
   ];
 }
 
@@ -273,6 +165,9 @@ export function getNavigationItemsForRole(
   }
   if (role === UserRole.OFFICER) {
     return getOfficerNavigationItems(counts);
+  }
+  if (role === UserRole.RESIDENT) {
+    return getResidentNavigationItems(counts);
   }
   return [
     {
