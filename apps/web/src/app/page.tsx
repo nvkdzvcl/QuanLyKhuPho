@@ -21,7 +21,13 @@ export default function HomePage() {
       <Header user={user} onOpenLoginModal={() => setIsAuthModalOpen(true)} />
 
       {/* Main Container */}
-      <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <main
+        className={`flex-1 mx-auto w-full px-3 py-4 sm:px-6 sm:py-6 lg:px-8 ${
+          user && user.role !== UserRole.RESIDENT
+            ? 'max-w-[1440px]'
+            : 'max-w-7xl'
+        }`}
+      >
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-500">
             <svg
