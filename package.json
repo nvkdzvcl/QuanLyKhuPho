@@ -16,6 +16,7 @@
     "e2e": "pnpm --filter @quanlykhupho/web build && playwright test",
     "db:backup": "node scripts/postgres-backup.mjs",
     "db:restore": "node scripts/postgres-restore.mjs",
+    "deployment:init": "pnpm --filter @quanlykhupho/api deployment:init",
     "clean": "turbo run clean"
   },
   "devDependencies": {

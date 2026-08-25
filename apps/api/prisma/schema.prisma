@@ -120,12 +120,46 @@ enum ActivityRating {
   @@map("activity_rating_enum")
 }
 
+enum LocalityLevel {
+  ward
+  commune
+  special_zone
+
+  @@map("locality_level_enum")
+}
+
+model DeploymentProfile {
+  id             String        @id @default(uuid()) @db.Uuid
+  singletonKey   String        @unique @default("SINGLETON") @map("singleton_key") @db.VarChar(50)
+  schemaVersion  Int           @default(1) @map("schema_version")
+  slug           String        @unique @db.VarChar(100)
+  localityCode   String        @map("locality_code") @db.VarChar(50)
+  localityName   String        @map("locality_name") @db.VarChar(255)
+  localityLevel  LocalityLevel @default(ward) @map("locality_level")
+  provinceCode   String        @map("province_code") @db.VarChar(50)
+  provinceName   String        @map("province_name") @db.VarChar(255)
+  districtName   String?       @map("district_name") @db.VarChar(255)
+  timezone       String        @default("Asia/Ho_Chi_Minh") @db.VarChar(100)
+  locale         String        @default("vi-VN") @db.VarChar(20)
+  brandName      String        @map("brand_name") @db.VarChar(255)
+  supportEmail   String?       @map("support_email") @db.VarChar(255)
+  supportHotline String?       @map("support_hotline") @db.VarChar(50)
+  portalUrl      String?       @map("portal_url") @db.VarChar(500)
+  confirmed      Boolean       @default(false)
+  confirmedAt    DateTime?     @map("confirmed_at") @db.Timestamptz(6)
+  confirmedBy    String?       @map("confirmed_by") @db.VarChar(255)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("deployment_profiles")
+}
+
 model Neighborhood {
   id          String    @id @default(uuid()) @db.Uuid
   code        String    @unique @db.VarChar(50)
   name        String    @db.VarChar(255)
   ward        String    @db.VarChar(255)
-  district    String    @db.VarChar(255)
+  district    String?   @db.VarChar(255)
   city        String    @db.VarChar(255)
   description String?   @db.Text
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)

@@ -214,10 +214,11 @@ pnpm dev
 | `PATCH` | `/api/petitions/:id/status` | Leader / Officer | Xử lý chuyển trạng thái (`reviewing -> processing -> resolved \| rejected`, từ chối yêu cầu lý do) |
 | `PATCH` | `/api/petitions/:id/cancel` | Resident (Author) | Cư dân tác giả hủy kiến nghị khi đang ở trạng thái chờ tiếp nhận (`reviewing`) |
 
-### Địa bàn & Khu phố (Neighborhoods)
+### Địa bàn & Khu phố (Neighborhoods & Deployment Profile)
 
 | Method | Endpoint | Quyền hạn | Mô tả |
 | :--- | :--- | :--- | :--- |
+| `GET` | `/api/deployment-profile` | Public | Thông tin địa bàn đã cấu hình hoặc trạng thái chưa khởi tạo |
 | `GET` | `/api/neighborhoods` | Public | Danh sách các khu phố / tổ dân phố |
 
 ---
@@ -227,6 +228,12 @@ pnpm dev
 ```bash
 # Khởi chạy SMS Delivery Worker
 pnpm --filter @quanlykhupho/api worker
+
+# Kiểm tra an toàn gói triển khai địa bàn (Validation / Dry-run mặc định)
+pnpm deployment:init -- --profile cho-quan
+
+# Áp dụng khởi tạo gói triển khai địa bàn vào cơ sở dữ liệu (BẮT BUỘC --apply để ghi CSDL)
+pnpm deployment:init -- --profile <slug> --apply
 
 # Khởi tạo Cán bộ phường đầu tiên (One-time Initial Officer Bootstrap)
 BOOTSTRAP_OFFICER_PHONE="0901234567" BOOTSTRAP_OFFICER_FULL_NAME="Nguyễn Văn Cán Bộ" pnpm --filter @quanlykhupho/api bootstrap:officer
@@ -241,6 +248,7 @@ pnpm db:restore -- --file=backups/<ten_tep_sao_luu>.dump
 node scripts/postgres-restore.mjs --file=backups/<ten_tep_sao_luu>.dump --confirm-destructive --confirm-database=quanlykhupho
 ```
 
+Chi tiết quy trình triển khai địa bàn, kiểm tra tính tương thích và bảo vệ dữ liệu được quy định tại [Sổ tay Vận hành: Khởi tạo & Triển khai Địa bàn (Locality Deployment Runbook)](docs/operations/locality-deployment.md).
 Chi tiết quy trình sao lưu, lưu trữ off-host, mã hóa, xoay vòng lưu trữ và diễn tập phục hồi được quy định tại [Sổ tay Vận hành: Sao lưu & Phục hồi CSDL (Database Backup & Restore Runbook)](docs/operations/database-backup-restore.md).
 
 ---

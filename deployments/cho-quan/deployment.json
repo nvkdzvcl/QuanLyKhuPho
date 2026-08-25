@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "slug": "cho-quan",
+  "confirmed": false,
+  "locality": {
+    "code": "27301",
+    "name": "Phường Chợ Quán",
+    "level": "ward",
+    "provinceCode": "79",
+    "provinceName": "Thành phố Hồ Chí Minh"
+  },
+  "branding": {
+    "brandName": "UBND Phường Chợ Quán"
+  },
+  "settings": {
+    "timezone": "Asia/Ho_Chi_Minh",
+    "locale": "vi-VN"
+  },
+  "neighborhoods": []
+}

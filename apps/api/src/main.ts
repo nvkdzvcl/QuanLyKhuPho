@@ -9,6 +9,7 @@ import { TransformInterceptor } from './core/interceptors/transform.interceptor'
 import { configureTransportSecurity } from './core/transport-security';
 import { SmsWorkerService } from './rabbitmq/sms-publisher.service';
 import { UsersService } from './users/users.service';
+import { DeploymentInitializationService } from './deployments/deployment-initialization.service';
 
 async function bootstrap() {
   const isWorkerMode = process.argv.includes('--worker') || process.env.RUN_SMS_WORKER === 'true';
@@ -16,6 +17,9 @@ async function bootstrap() {
     process.argv.includes('--bootstrap-officer') ||
     process.argv.includes('bootstrap:officer') ||
     process.env.RUN_BOOTSTRAP_OFFICER === 'true';
+  const isDeploymentInitMode =
+    process.argv.includes('--deployment-init') ||
+    process.argv.includes('deployment:init');
 
   // 1. Standalone SMS Worker Mode
   if (isWorkerMode) {
@@ -60,7 +64,55 @@ async function bootstrap() {
     }
   }
 
-  // 3. Default HTTP API Server Mode
+  // 3. Deployment Profile Initializer CLI Mode
+  if (isDeploymentInitMode) {
+    const logger = new Logger('DeploymentInitCommand');
+    logger.log('Starting deployment initialization command...');
+    const app = await NestFactory.createApplicationContext(AppModule);
+    const initService = app.get(DeploymentInitializationService);
+
+    try {
+      // Find --profile argument
+      const profileIndex = process.argv.indexOf('--profile');
+      let profileInput: string | undefined;
+      if (profileIndex !== -1 && process.argv[profileIndex + 1]) {
+        profileInput = process.argv[profileIndex + 1];
+      } else {
+        const pArg = process.argv.find((a) => a.startsWith('--profile='));
+        if (pArg) {
+          profileInput = pArg.split('=')[1];
+        } else {
+          profileInput = process.env.DEPLOYMENT_PROFILE;
+        }
+      }
+
+      if (!profileInput || profileInput.trim().length === 0) {
+        logger.error('Missing required argument: --profile <slug_or_path>');
+        await app.close();
+        process.exit(1);
+      }
+
+      const shouldApply = process.argv.includes('--apply');
+
+      const result = await initService.initializeDeployment({
+        slug: profileInput.trim(),
+        apply: shouldApply,
+      });
+
+      logger.log(
+        `Deployment initialization completed: slug=${result.slug}, locality=${result.localityName}, dryRun=${result.dryRun}, confirmed=${result.confirmed}, created=${result.neighborhoodsCreated}, updated=${result.neighborhoodsUpdated}`,
+      );
+      await app.close();
+      process.exit(0);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      logger.error(`Deployment initialization failed: ${errorMsg}`);
+      await app.close();
+      process.exit(1);
+    }
+  }
+
+  // 4. Default HTTP API Server Mode
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 

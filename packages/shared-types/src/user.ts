@@ -5,7 +5,7 @@ export interface NeighborhoodDto {
   code: string;
   name: string;
   ward: string;
-  district: string;
+  district: string | null;
   city: string;
   description?: string | null;
   createdAt: string;

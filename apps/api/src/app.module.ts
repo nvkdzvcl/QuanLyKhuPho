@@ -16,6 +16,7 @@ import { ResidentProfilesModule } from './resident-profiles/resident-profiles.mo
 import { PoliticalSocialProfilesModule } from './political-social-profiles/political-social-profiles.module';
 import { NeighborhoodActivitiesModule } from './neighborhood-activities/neighborhood-activities.module';
 import { ExportsModule } from './exports/exports.module';
+import { DeploymentsModule } from './deployments/deployments.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { ExportsModule } from './exports/exports.module';
     PoliticalSocialProfilesModule,
     NeighborhoodActivitiesModule,
     ExportsModule,
+    DeploymentsModule,
   ],
 })
 export class AppModule {}

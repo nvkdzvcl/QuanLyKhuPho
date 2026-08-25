@@ -11,6 +11,7 @@
     "dev": "prisma generate && nest start --watch",
     "worker": "pnpm run build && node dist/main.js --worker",
     "bootstrap:officer": "pnpm run build && node dist/main.js --bootstrap-officer",
+    "deployment:init": "pnpm run build && node dist/main.js --deployment-init",
     "lint": "eslint .",
     "typecheck": "prisma generate && tsc --noEmit",
     "test": "prisma generate && vitest run",
