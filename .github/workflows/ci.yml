@@ -56,6 +56,44 @@ jobs:
     name: Multi-Browser E2E Tests
     needs: validate
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: quanlykhupho
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d quanlykhupho"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      rabbitmq:
+        image: rabbitmq:3.13-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: guest
+          RABBITMQ_DEFAULT_PASS: guest
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -80,10 +118,19 @@ jobs:
       - name: Run E2E tests
         run: pnpm e2e
 
+      - name: Run Full-Stack E2E tests
+        env:
+          E2E_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/quanlykhupho?schema=qlkp_e2e
+          E2E_REDIS_URL: redis://localhost:6379/15
+          E2E_RABBITMQ_URL: amqp://guest:guest@localhost:5672
+        run: pnpm e2e:fullstack
+
       - name: Upload Playwright Report
         uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
           name: playwright-report
-          path: playwright-report/
+          path: |
+            playwright-report/
+            playwright-report-fullstack/
           retention-days: 7

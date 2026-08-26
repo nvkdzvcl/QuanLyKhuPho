@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "slug": "e2e",
+  "confirmed": true,
+  "confirmedAt": "2026-08-26T00:00:00.000Z",
+  "confirmedBy": "Hệ thống Kiểm thử E2E",
+  "locality": {
+    "code": "TEST-E2E",
+    "name": "Phường Thử Nghiệm",
+    "level": "ward",
+    "provinceCode": "79",
+    "provinceName": "Thành phố Hồ Chí Minh",
+    "district": "Quận Thử Nghiệm"
+  },
+  "branding": {
+    "brandName": "UBND Phường Thử Nghiệm"
+  },
+  "contact": {
+    "email": "hotro@phuongthunghiem.gov.vn",
+    "hotline": "028 39999999",
+    "portalUrl": "http://localhost:3100"
+  },
+  "settings": {
+    "timezone": "Asia/Ho_Chi_Minh",
+    "locale": "vi-VN"
+  },
+  "neighborhoods": [
+    {
+      "code": "KP-01",
+      "name": "Khu phố 1",
+      "description": "Khu phố 1 - Thử nghiệm"
+    },
+    {
+      "code": "KP-02",
+      "name": "Khu phố 2",
+      "description": "Khu phố 2 - Thử nghiệm"
+    },
+    {
+      "code": "KP-03",
+      "name": "Khu phố 3",
+      "description": "Khu phố 3 - Thử nghiệm"
+    }
+  ]
+}

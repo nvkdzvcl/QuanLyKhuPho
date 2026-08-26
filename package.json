@@ -14,6 +14,7 @@
     "test": "turbo run test",
     "test:ops": "node --test scripts/test/postgres-operations.test.mjs",
     "e2e": "turbo run build --filter=@quanlykhupho/web... && playwright test",
+    "e2e:fullstack": "turbo run build --filter=@quanlykhupho/api... --filter=@quanlykhupho/web... && node apps/api/test/fullstack/prepare.mjs && playwright test --config=playwright.fullstack.config.ts",
     "db:backup": "node scripts/postgres-backup.mjs",
     "db:restore": "node scripts/postgres-restore.mjs",
     "deployment:init": "pnpm --filter @quanlykhupho/api deployment:init",

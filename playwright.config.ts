@@ -12,6 +12,7 @@ import { defineConfig } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './apps/web/e2e',
+  testIgnore: /fullstack-role-flows\.spec\.ts$/,
   timeout: 30_000,
   expect: {
     timeout: 5_000,

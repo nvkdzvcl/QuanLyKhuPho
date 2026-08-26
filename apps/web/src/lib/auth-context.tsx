@@ -4,10 +4,12 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
   useCallback,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ApiResponseEnvelope,
   CurrentUserResponseDto,
@@ -27,8 +29,24 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserDto | null>(null);
+  const queryClient = useQueryClient();
+  const [user, setUserState] = useState<UserDto | null>(null);
+  const userIdRef = useRef<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const setUser = useCallback(
+    (nextUser: UserDto | null) => {
+      const nextUserId = nextUser?.id ?? null;
+
+      if (userIdRef.current !== nextUserId) {
+        queryClient.clear();
+      }
+
+      userIdRef.current = nextUserId;
+      setUserState(nextUser);
+    },
+    [queryClient],
+  );
 
   const refreshUser = useCallback(async () => {
     try {
@@ -45,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [setUser]);
 
   useEffect(() => {
     refreshUser();
