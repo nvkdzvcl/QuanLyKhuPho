@@ -281,10 +281,14 @@ pnpm e2e
 
 # 8. Kiểm thử Nghiệm thu Hiệu năng & Độ trễ API (SRS NFR-03 - Real-stack p95 < 500ms)
 pnpm perf:api
+
+# 9. Kiểm thử Nghiệm thu Bảo mật, Phân quyền & Chống IDOR (Real-stack Authorization & IDOR Gate)
+pnpm security:api
 ```
 
 Chi tiết ma trận kiểm thử đa trình duyệt (Chromium, Firefox, WebKit trên 320x568 và 1920x1080), bằng chứng hiệu năng tải trang, kiểm tra chống tràn ngang và danh mục nghiệm thu thiết bị thực tế bắt buộc được quy định tại [Hướng dẫn Nghiệm thu Trình duyệt & Hiệu năng (Browser & Performance Acceptance)](docs/quality/browser-performance-acceptance.md).
 Chi tiết rào chắn đo lường độ trễ API trên stack thật (PostgreSQL `qlkp_e2e`, Redis DB 15, RabbitMQ), tính toán phân vị Nearest-Rank và phân định ranh giới lab/production được quy định tại [Sổ tay Nghiệm thu Hiệu năng API (API Performance Acceptance)](docs/quality/api-performance-acceptance.md).
+Chi tiết rào chắn kiểm thử phân quyền server-side, cô lập dữ liệu 2 khu phố, chống IDOR, thu hồi phiên làm việc tức thì và che mặt nạ dữ liệu xuất được quy định tại [Sổ tay Nghiệm thu Bảo mật & Phân quyền (Security Authorization Acceptance)](docs/quality/security-authorization-acceptance.md).
 
 ---
 

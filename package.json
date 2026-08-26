@@ -16,6 +16,7 @@
     "e2e": "turbo run build --filter=@quanlykhupho/web... && playwright test",
     "e2e:fullstack": "turbo run build --filter=@quanlykhupho/api... --filter=@quanlykhupho/web... && node apps/api/test/fullstack/prepare.mjs && playwright test --config=playwright.fullstack.config.ts",
     "perf:api": "turbo run build --filter=@quanlykhupho/api... && node apps/api/test/fullstack/prepare.mjs && playwright test --config=playwright.performance.config.ts",
+    "security:api": "turbo run build --filter=@quanlykhupho/api... && node apps/api/test/fullstack/prepare.mjs && playwright test --config=playwright.security.config.ts",
     "db:backup": "node scripts/postgres-backup.mjs",
     "db:restore": "node scripts/postgres-restore.mjs",
     "deployment:init": "pnpm --filter @quanlykhupho/api deployment:init",

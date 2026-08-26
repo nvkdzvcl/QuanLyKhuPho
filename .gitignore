@@ -25,6 +25,8 @@ playwright-report-fullstack/
 test-results-fullstack/
 playwright-report-performance/
 test-results-performance/
+playwright-report-security/
+test-results-security/
 blob-report/
 playwright/.cache/
 .playwright/
