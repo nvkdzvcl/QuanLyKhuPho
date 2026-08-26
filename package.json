@@ -19,6 +19,7 @@
     "security:api": "turbo run build --filter=@quanlykhupho/api... && node apps/api/test/fullstack/prepare.mjs && playwright test --config=playwright.security.config.ts",
     "db:backup": "node scripts/postgres-backup.mjs",
     "db:restore": "node scripts/postgres-restore.mjs",
+    "prisma:generate": "pnpm --filter @quanlykhupho/api prisma:generate",
     "deployment:init": "pnpm --filter @quanlykhupho/api deployment:init",
     "clean": "turbo run clean"
   },

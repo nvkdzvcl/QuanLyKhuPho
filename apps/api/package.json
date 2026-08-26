@@ -5,7 +5,7 @@
   "scripts": {
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "build": "prisma generate && tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "start:worker": "node dist/main.js --worker",
     "dev": "prisma generate && nest start --watch",
@@ -13,8 +13,8 @@
     "bootstrap:officer": "pnpm run build && node dist/main.js --bootstrap-officer",
     "deployment:init": "pnpm run build && node dist/main.js --deployment-init",
     "lint": "eslint .",
-    "typecheck": "prisma generate && tsc --noEmit",
-    "test": "prisma generate && vitest run",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "clean": "rm -rf dist"
   },
   "dependencies": {

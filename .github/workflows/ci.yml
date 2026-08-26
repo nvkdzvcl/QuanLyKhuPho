@@ -37,6 +37,11 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/quanlykhupho?schema=public
         run: pnpm --filter @quanlykhupho/api exec prisma validate
 
+      - name: Generate Prisma Client
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/quanlykhupho?schema=public
+        run: pnpm prisma:generate
+
       - name: Lint
         run: pnpm lint
 
@@ -111,6 +116,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/quanlykhupho?schema=public
+        run: pnpm prisma:generate
 
       - name: Install Playwright Browsers
         run: pnpm exec playwright install --with-deps chromium firefox webkit
@@ -195,6 +205,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma Client
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/quanlykhupho?schema=public
+        run: pnpm prisma:generate
+
       - name: Run API Performance Acceptance
         env:
           E2E_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/quanlykhupho?schema=qlkp_e2e
@@ -271,6 +286,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/quanlykhupho?schema=public
+        run: pnpm prisma:generate
 
       - name: Run Security Authorization & IDOR Acceptance
         env:

@@ -77,7 +77,15 @@ và `OTP_PEPPER` dài ít nhất 32 ký tự. Không dùng lại giá trị gi�
 không commit các giá trị này. Development có fallback cục bộ để chạy test, nhưng
 production sẽ dừng khởi động nếu thiếu hạ tầng hoặc khóa hợp lệ.
 
-### 3. Khởi chạy Hạ tầng Cục bộ (Local Infrastructure)
+### 3. Sinh mã Prisma Client (Prisma Client Generation)
+
+Sinh Prisma Client sau khi thiết lập biến môi trường và bất kỳ khi nào schema (`apps/api/prisma/schema.prisma`) thay đổi:
+
+```bash
+pnpm prisma:generate
+```
+
+### 4. Khởi chạy Hạ tầng Cục bộ (Local Infrastructure)
 
 Khởi động các dịch vụ PostgreSQL 16, Redis 7 và RabbitMQ 3.13:
 
@@ -91,7 +99,7 @@ Kiểm tra trạng thái healthcheck các container:
 docker compose -f docker/docker-compose.yml ps
 ```
 
-### 4. Áp dụng Database Migrations (Prisma Migration)
+### 5. Áp dụng Database Migrations (Prisma Migration)
 
 Chạy migration để khởi tạo cấu trúc bảng `neighborhoods` và `accounts` trong PostgreSQL:
 
@@ -99,7 +107,7 @@ Chạy migration để khởi tạo cấu trúc bảng `neighborhoods` và `acco
 pnpm --filter @quanlykhupho/api prisma:migrate
 ```
 
-### 5. Chạy chế độ Phát triển (Development Mode)
+### 6. Chạy chế độ Phát triển (Development Mode)
 
 Chạy đồng thời tất cả ứng dụng qua Turborepo:
 
@@ -285,6 +293,9 @@ pnpm perf:api
 # 9. Kiểm thử Nghiệm thu Bảo mật, Phân quyền & Chống IDOR (Real-stack Authorization & IDOR Gate)
 pnpm security:api
 ```
+
+> **Lưu ý về Prisma Client & Cơ chế Khóa DLL trên Windows**:
+> Các lệnh kiểm tra chất lượng lặp lại (`pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, v.v.) chủ động tái sử dụng Prisma Client đã sinh sẵn thay vì tự động gọi lại `prisma generate`. Thiết kế này giúp ngăn ngừa lỗi xung đột / khóa tệp thư viện động (DLL / query engine `.node`) trên môi trường Windows khi tiến trình phát triển Backend API (`pnpm dev`) đang chạy song song. Khi cập nhật `schema.prisma`, hãy chạy tường minh `pnpm prisma:generate`.
 
 Chi tiết ma trận kiểm thử đa trình duyệt (Chromium, Firefox, WebKit trên 320x568 và 1920x1080), bằng chứng hiệu năng tải trang, kiểm tra chống tràn ngang và danh mục nghiệm thu thiết bị thực tế bắt buộc được quy định tại [Hướng dẫn Nghiệm thu Trình duyệt & Hiệu năng (Browser & Performance Acceptance)](docs/quality/browser-performance-acceptance.md).
 Chi tiết rào chắn đo lường độ trễ API trên stack thật (PostgreSQL `qlkp_e2e`, Redis DB 15, RabbitMQ), tính toán phân vị Nearest-Rank và phân định ranh giới lab/production được quy định tại [Sổ tay Nghiệm thu Hiệu năng API (API Performance Acceptance)](docs/quality/api-performance-acceptance.md).
