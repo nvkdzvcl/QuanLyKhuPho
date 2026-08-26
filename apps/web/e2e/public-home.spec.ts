@@ -35,6 +35,42 @@ test.describe('Public Home Shell & Multi-Browser QA', () => {
         }),
       });
     });
+
+    // Production landing requires an initialized, confirmed locality before
+    // authentication controls are enabled.
+    await page.route('**/api/deployment-profile', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            initialized: true,
+            profile: {
+              schemaVersion: 1,
+              slug: 'phuong-kiem-thu',
+              localityCode: 'TEST-001',
+              localityName: 'Phường Kiểm thử',
+              localityLevel: 'ward',
+              provinceCode: '79',
+              provinceName: 'Thành phố Hồ Chí Minh',
+              districtName: null,
+              timezone: 'Asia/Ho_Chi_Minh',
+              locale: 'vi-VN',
+              brandName: 'Cổng thông tin Phường Kiểm thử',
+              supportEmail: null,
+              supportHotline: null,
+              portalUrl: null,
+              confirmed: true,
+              confirmedAt: '2026-08-26T00:00:00.000Z',
+              createdAt: '2026-08-26T00:00:00.000Z',
+              updatedAt: '2026-08-26T00:00:00.000Z',
+            },
+          },
+          timestamp: '2026-08-26T00:00:00.000Z',
+        }),
+      });
+    });
   });
 
   test('public shell renders Vietnamese content within 3000ms budget', async ({ page }) => {
@@ -43,7 +79,8 @@ test.describe('Public Home Shell & Multi-Browser QA', () => {
 
     // Measure only navigation-to-usable-shell, before unrelated assertions.
     const heroHeading = page.getByRole('heading', {
-      name: /Nền tảng số hoá quản trị/i,
+      name: 'Kết nối cộng đồng, phục vụ người dân thuận tiện hơn',
+      level: 1,
     });
     await expect(heroHeading).toBeVisible({ timeout: 3000 });
     const loadDuration = Date.now() - startTime;
@@ -56,24 +93,29 @@ test.describe('Public Home Shell & Multi-Browser QA', () => {
     // Verify page title
     await expect(page).toHaveTitle(/Quản Lý Khu Phố/i);
 
-    // Verify brand header
+    // Verify dynamic locality branding from the deployment profile.
     await expect(
-      page.getByRole('heading', { name: 'Quản Lý Khu Phố', level: 1 }),
+      page.getByRole('link', {
+        name: 'Cổng thông tin Phường Kiểm thử - về nội dung chính',
+      }),
     ).toBeVisible();
 
-    // Verify key Vietnamese feature highlights
-    await expect(
-      page.getByRole('heading', { name: 'Đăng nhập OTP không cần mật khẩu', level: 3 }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('heading', { name: 'Phân quyền & Xét duyệt Cư dân', level: 3 }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('heading', { name: 'Bảo mật Phiên & Mã hóa Dữ liệu', level: 3 }),
-    ).toBeVisible();
+    const loginButton = page.getByRole('button', {
+      name: 'Đăng nhập / Đăng ký bằng OTP',
+      exact: true,
+    });
+    await expect(loginButton).toBeVisible();
+    await expect(loginButton).toBeEnabled();
 
-    // Verify footer notice
-    await expect(page.getByText('© 2026 QuanLyKhuPho')).toBeVisible();
+    // Verify footer uses deployment branding and locality.
+    await expect(
+      page.getByText('© 2026 Cổng thông tin Phường Kiểm thử'),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        'Cổng thông tin phục vụ cộng đồng dân cư Phường Kiểm thử, Thành phố Hồ Chí Minh',
+      ),
+    ).toBeVisible();
   });
 
   test('responsive layout fits viewport without horizontal overflow', async ({ page }, testInfo) => {
@@ -81,7 +123,10 @@ test.describe('Public Home Shell & Multi-Browser QA', () => {
 
     // Wait for main content to load
     await expect(
-      page.getByRole('heading', { name: /Nền tảng số hoá quản trị/i }),
+      page.getByRole('heading', {
+        name: 'Kết nối cộng đồng, phục vụ người dân thuận tiện hơn',
+        level: 1,
+      }),
     ).toBeVisible();
 
     // Assert exact viewport dimensions match project configuration
@@ -112,8 +157,12 @@ test.describe('Public Home Shell & Multi-Browser QA', () => {
     await page.goto('/');
 
     // Find and click the accessible login trigger button
-    const loginButton = page.getByRole('button', { name: /Đăng nhập/i }).first();
+    const loginButton = page.getByRole('button', {
+      name: 'Đăng nhập / Đăng ký bằng OTP',
+      exact: true,
+    });
     await expect(loginButton).toBeVisible();
+    await expect(loginButton).toBeEnabled();
     await loginButton.click();
 
     // Verify modal dialog appears with accessible role and attributes
