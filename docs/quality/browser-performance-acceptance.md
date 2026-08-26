@@ -28,9 +28,9 @@ Hệ thống kiểm thử tự động sử dụng **Playwright** để kiểm t
 
 ## 2. Ánh xạ Yêu cầu Phi chức năng & Bằng chứng Tự động
 
-| Yêu cầu SRS | Nội dung yêu cầu | Bằng chứng kiểm thử tự động (`apps/web/e2e/public-home.spec.ts`) | Giới hạn & Điểm lưu ý |
+| Yêu cầu SRS | Nội dung yêu cầu | Bằng chứng kiểm thử tự động trong repository | Giới hạn & Điểm lưu ý |
 | :--- | :--- | :--- | :--- |
-| **NFR-03**<br>*(Hiệu năng tải trang)* | - Trang tải nhanh, thời gian tải hoàn tất trong ngưỡng quy định.<br>- Ngân sách tải trang shell <= 3 giây.<br>- PageSpeed Insights >= 80.<br>- API latency p95 < 500ms. | - Đo lường thời gian từ lúc gửi yêu cầu tới khi dựng xong giao diện công khai chính (`hero heading`) trên bản build production Next.js.<br>- Khẳng định nghiêm ngặt thời gian tải `<= 3000 ms` (3.0 giây). | - **Lab Smoke Test**: Đo lường cục bộ với boundary mock API, không có độ trễ đường truyền Internet và tải đồng thời.<br>- **Chưa chứng minh**: Điểm Google PageSpeed Insights `>= 80` trên production hoặc p95 API `< 500ms` dưới tải thực tế. |
+| **NFR-03**<br>*(Hiệu năng tải trang & API)* | - Trang tải nhanh, thời gian tải hoàn tất trong ngưỡng quy định.<br>- Ngân sách tải trang shell <= 3 giây.<br>- PageSpeed Insights >= 80.<br>- API latency p95 < 500ms. | 1. **Web Shell**: Đo lường thời gian từ lúc gửi yêu cầu tới khi dựng xong giao diện công khai chính (`hero heading`) trên bản build production Next.js (`apps/web/e2e/public-home.spec.ts`), khẳng định nghiêm ngặt thời gian tải `<= 3000 ms` (3.0 giây).<br>2. **API Real-Stack Harness**: Đo lường độ trễ 5 endpoints đại diện với độ đồng thời 5 trên stack thật API + PostgreSQL (`qlkp_e2e`) + Redis (DB 15) + RabbitMQ (`apps/api/test/performance/api-latency.spec.ts` qua `pnpm perf:api`), khẳng định nghiêm ngặt 0 lỗi và p95 `< 500 ms` theo Nearest-Rank. Xem chi tiết tại [Sổ tay Nghiệm thu Hiệu năng API](api-performance-acceptance.md). | - **Lab/CI Acceptance**: Cung cấp bằng chứng tự động xác định trong môi trường lab/CI cho shell web <= 3s và API latency p95 < 500ms trên stack thực tế.<br>- **Chưa chứng minh**: Điểm Google PageSpeed Insights `>= 80` trên production hoặc p95 API dưới tải cao điểm quy mô lớn và độ trễ Internet thực tế (cần nghiệm thu trước Go-Live theo checklist mục 3). |
 | **NFR-05**<br>*(Tương thích trình duyệt)* | - Hỗ trợ Chrome, Edge, Safari từ iOS 16.4 trở lên và Firefox phiên bản mới nhất. | - Chạy thành công 100% kịch bản kiểm thử trên cả 3 họ động cơ độc lập: Chromium, Firefox và WebKit. | - Cần bổ sung kiểm thử xác nhận trực tiếp trên Chrome, Microsoft Edge và Safari iOS 16.4+ thực tế. |
 | **NFR-06**<br>*(Thiết kế Responsive & Mobile-First)* | - Bố cục tối ưu trên cả di động (từ 320px) và máy tính (1920px).<br>- Không bị vỡ khung hoặc tràn ngang màn hình. | - Đo lường `scrollWidth` và `clientWidth` của toàn bộ tài liệu.<br>- Khẳng định `scrollWidth <= clientWidth` (không xuất hiện thanh cuộn ngang hay tràn nội dung ở 320px và 1920px). | - Kiểm thử bố cục hình học, không thay thế kiểm tra cảm ứng thực tế (touch target) trên các dòng ngón tay người dùng khác nhau. |
 | **NFR-09**<br>*(Ngôn ngữ & trải nghiệm)* | - Giao diện hoàn toàn bằng tiếng Việt, hiện đại, thân thiện và ưu tiên mobile.<br>- Nghiệm thu thực tế với Tổ trưởng. | - Kiểm tra thuộc tính `html[lang="vi"]` và nội dung tiếng Việt đặc trưng.<br>- Kiểm tra bổ sung khả năng mở/đóng hộp thoại qua control có tên truy cập và phím Escape. | - Automation không thay thế nghiệm thu trải nghiệm với Tổ trưởng; kiểm thử trợ năng là bằng chứng bổ sung, không phải chỉ số SRS riêng. |
@@ -77,6 +77,14 @@ pnpm exec playwright install --with-deps chromium firefox webkit
 ```bash
 pnpm e2e
 ```
+
+### Chạy Kiểm thử Nghiệm thu Hiệu năng & Độ trễ API (SRS NFR-03)
+
+```bash
+pnpm perf:api
+```
+
+Chi tiết cấu hình, danh sách endpoint đại diện và ma trận đo lường độ trễ API được quy định tại [Sổ tay Nghiệm thu Hiệu năng API (API Performance Acceptance)](api-performance-acceptance.md).
 
 ### Chạy Kiểm thử với Giao diện Trực quan (Playwright UI Mode)
 

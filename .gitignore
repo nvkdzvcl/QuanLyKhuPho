@@ -23,6 +23,8 @@ test-results/
 playwright-report/
 playwright-report-fullstack/
 test-results-fullstack/
+playwright-report-performance/
+test-results-performance/
 blob-report/
 playwright/.cache/
 .playwright/

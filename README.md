@@ -278,9 +278,13 @@ docker compose -f docker/docker-compose.yml config --quiet
 
 # 7. Kiểm thử Đa trình duyệt, Responsive & Ngân sách Hiệu năng (Playwright E2E - 6 Projects)
 pnpm e2e
+
+# 8. Kiểm thử Nghiệm thu Hiệu năng & Độ trễ API (SRS NFR-03 - Real-stack p95 < 500ms)
+pnpm perf:api
 ```
 
 Chi tiết ma trận kiểm thử đa trình duyệt (Chromium, Firefox, WebKit trên 320x568 và 1920x1080), bằng chứng hiệu năng tải trang, kiểm tra chống tràn ngang và danh mục nghiệm thu thiết bị thực tế bắt buộc được quy định tại [Hướng dẫn Nghiệm thu Trình duyệt & Hiệu năng (Browser & Performance Acceptance)](docs/quality/browser-performance-acceptance.md).
+Chi tiết rào chắn đo lường độ trễ API trên stack thật (PostgreSQL `qlkp_e2e`, Redis DB 15, RabbitMQ), tính toán phân vị Nearest-Rank và phân định ranh giới lab/production được quy định tại [Sổ tay Nghiệm thu Hiệu năng API (API Performance Acceptance)](docs/quality/api-performance-acceptance.md).
 
 ---
 
