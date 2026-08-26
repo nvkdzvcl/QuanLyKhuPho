@@ -12,9 +12,114 @@
   "branding": {
     "brandName": "UBND Phường Chợ Quán"
   },
+  "contact": {
+    "hotline": "028 39555555",
+    "portalUrl": "https://phuongchoquan.vn"
+  },
   "settings": {
     "timezone": "Asia/Ho_Chi_Minh",
     "locale": "vi-VN"
   },
-  "neighborhoods": []
+  "neighborhoods": [
+    {
+      "code": "KP-01",
+      "name": "Khu phố 1"
+    },
+    {
+      "code": "KP-02",
+      "name": "Khu phố 2"
+    },
+    {
+      "code": "KP-03",
+      "name": "Khu phố 3"
+    },
+    {
+      "code": "KP-04",
+      "name": "Khu phố 4"
+    },
+    {
+      "code": "KP-05",
+      "name": "Khu phố 5"
+    },
+    {
+      "code": "KP-06",
+      "name": "Khu phố 6"
+    },
+    {
+      "code": "KP-07",
+      "name": "Khu phố 7"
+    },
+    {
+      "code": "KP-08",
+      "name": "Khu phố 8"
+    },
+    {
+      "code": "KP-09",
+      "name": "Khu phố 9"
+    },
+    {
+      "code": "KP-10",
+      "name": "Khu phố 10"
+    },
+    {
+      "code": "KP-11",
+      "name": "Khu phố 11"
+    },
+    {
+      "code": "KP-12",
+      "name": "Khu phố 12"
+    },
+    {
+      "code": "KP-13",
+      "name": "Khu phố 13"
+    },
+    {
+      "code": "KP-14",
+      "name": "Khu phố 14"
+    },
+    {
+      "code": "KP-15",
+      "name": "Khu phố 15"
+    },
+    {
+      "code": "KP-16",
+      "name": "Khu phố 16"
+    },
+    {
+      "code": "KP-17",
+      "name": "Khu phố 17"
+    },
+    {
+      "code": "KP-18",
+      "name": "Khu phố 18"
+    },
+    {
+      "code": "KP-19",
+      "name": "Khu phố 19"
+    },
+    {
+      "code": "KP-20",
+      "name": "Khu phố 20"
+    },
+    {
+      "code": "KP-21",
+      "name": "Khu phố 21"
+    },
+    {
+      "code": "KP-22",
+      "name": "Khu phố 22"
+    },
+    {
+      "code": "KP-23",
+      "name": "Khu phố 23"
+    },
+    {
+      "code": "KP-24",
+      "name": "Khu phố 24"
+    },
+    {
+      "code": "KP-25",
+      "name": "Khu phố 25"
+    }
+  ]
 }

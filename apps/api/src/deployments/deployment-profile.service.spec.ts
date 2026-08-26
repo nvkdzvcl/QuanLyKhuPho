@@ -182,7 +182,7 @@ describe('DeploymentProfileService & Controller', () => {
       expect(fs.existsSync(choQuanPath)).toBe(true);
     });
 
-    it('successfully parses cho-quan/deployment.json and verifies official metadata', () => {
+    it('successfully parses cho-quan/deployment.json and verifies official metadata, public contacts, and provisional neighborhoods', () => {
       const content = fs.readFileSync(choQuanPath, 'utf-8');
       const pkg = parseDeploymentPackageJson(content);
 
@@ -205,9 +205,29 @@ describe('DeploymentProfileService & Controller', () => {
       expect(pkg.settings?.timezone).toBe('Asia/Ho_Chi_Minh');
       expect(pkg.settings?.locale).toBe('vi-VN');
 
-      // Zero invented neighborhoods
-      expect(pkg.neighborhoods).toEqual([]);
-      expect(pkg.neighborhoods).toHaveLength(0);
+      // Public contact metadata & absence of unverified email
+      expect(pkg.contact?.hotline).toBe('028 39555555');
+      expect(pkg.contact?.portalUrl).toBe('https://phuongchoquan.vn');
+      expect(pkg.contact?.email).toBeUndefined();
+
+      // Provisional 25 neighborhoods with deterministic application-local codes
+      expect(pkg.neighborhoods).toHaveLength(25);
+
+      const expectedNeighborhoods = Array.from({ length: 25 }, (_, i) => {
+        const num = i + 1;
+        const codeSuffix = String(num).padStart(2, '0');
+        return {
+          code: `KP-${codeSuffix}`,
+          name: `Khu phố ${num}`,
+        };
+      });
+      expect(pkg.neighborhoods).toEqual(expectedNeighborhoods);
+
+      // Uniqueness check for codes and names
+      const codes = pkg.neighborhoods.map((n) => n.code);
+      const names = pkg.neighborhoods.map((n) => n.name);
+      expect(new Set(codes).size).toBe(25);
+      expect(new Set(names).size).toBe(25);
     });
 
     it('validates cho-quan package in dry-run mode without database mutations', async () => {
@@ -240,12 +260,12 @@ describe('DeploymentProfileService & Controller', () => {
       expect(result.provinceCode).toBe('79');
       expect(result.provinceName).toBe('Thành phố Hồ Chí Minh');
       expect(result.districtName).toBeNull();
-      expect(result.neighborhoodsCount).toBe(0);
+      expect(result.neighborhoodsCount).toBe(25);
       expect(result.neighborhoodsCreated).toBe(0);
       expect(result.neighborhoodsUpdated).toBe(0);
     });
 
-    it('rejects --apply for cho-quan draft package (requires confirmed=true and >=1 neighborhood)', async () => {
+    it('rejects --apply for cho-quan draft package before opening a transaction because confirmed=false', async () => {
       const mockPrisma = {
         $transaction: vi.fn(),
       } as unknown as PrismaService;

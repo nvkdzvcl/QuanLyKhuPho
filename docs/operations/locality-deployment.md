@@ -15,14 +15,16 @@ Tài liệu này hướng dẫn quy trình vận hành, khởi tạo và quản 
    - Lệnh khởi tạo mặc định luôn chạy ở chế độ **Dry-Run** (chỉ đọc, kiểm tra tính hợp lệ và xung đột dữ liệu).
    - Chỉ khi có cờ `--apply` rõ ràng, chương trình mới thực hiện ghi vào cơ sở dữ liệu trong một Transaction có mức cô lập cao (`Serializable`).
 
-3. **Chống Ghi đè & Khóa Địa bàn (Locality Lock / Fail Closed)**:
+3. **Chống Ghi đè, Khóa Địa bàn & Rào cản Dữ liệu Dự thảo (Fail-Closed Draft Gate)**:
    - Một cơ sở dữ liệu đã khởi tạo hồ sơ địa bàn (`DeploymentProfile`) sẽ **từ chối** áp dụng bất kỳ gói địa bàn nào khác có mã hoặc tên khác biệt.
    - Cơ sở dữ liệu đã có khu phố nhưng chưa có hồ sơ địa bàn sẽ bị từ chối khởi tạo tự động để tránh làm hỏng dữ liệu cũ.
+   - Gói cấu hình có `confirmed: false` tuyệt đối bị chặn áp dụng vào CSDL. Việc gói dự thảo đã được điền dữ liệu (ví dụ: 25 khu phố tạm thời) **không cấu thành bằng chứng triển khai** và hệ thống duy trì cơ chế fail-closed cho đến khi hoàn tất phê duyệt chính thức.
 
-4. **Bảo mật & Không lưu Bí mật trong Gói Cấu hình**:
-   - Gói triển khai (`deployment.json`) chỉ chứa siêu dữ liệu hành chính và danh sách khu phố.
+4. **Bảo mật, Quyền riêng tư & Quy ước Mã Kỹ thuật Nội bộ**:
+   - Gói triển khai (`deployment.json`) chỉ chứa siêu dữ liệu hành chính và danh sách khu phố công khai.
    - Tuyệt đối không lưu mã OTP, số điện thoại riêng tư, token hay chuỗi kết nối nhạy cảm trong gói triển khai.
    - Endpoint công khai `GET /api/deployment-profile` chỉ trả về thông tin địa bàn công khai, loại trừ hoàn toàn các định danh nội bộ (`id`, `singletonKey`, `confirmedBy`).
+   - Các mã khu phố dạng `KP-01`, `KP-02`, ... trong gói triển khai là **mã kỹ thuật nội bộ của ứng dụng (deterministic application-local codes)** phục vụ định tuyến và phân quyền phần mềm, **không phải là mã định danh hành chính do Nhà nước ban hành**.
 
 ---
 
@@ -61,20 +63,26 @@ pnpm deployment:init -- --profile <slug>
 # Ví dụ: pnpm deployment:init -- --profile cho-quan
 ```
 
-Nếu gói cấu hình ở trạng thái bản nháp (`confirmed: false`), CLI sẽ thông báo kiểm tra thành công nhưng cảnh báo chưa thể áp dụng vào CSDL.
+Nếu gói cấu hình ở trạng thái bản nháp (`confirmed: false`), CLI sẽ thông báo kiểm tra cấu trúc thành công (ví dụ: nhận diện đủ 25 khu phố dự thảo) nhưng cảnh báo fail-closed chặn không cho áp dụng vào CSDL. Người vận hành tham khảo sổ tay nguồn gốc kiểm chứng đính kèm gói cấu hình (ví dụ: [`deployments/cho-quan/README.md`](../../deployments/cho-quan/README.md)) để đối soát nguồn và trạng thái thẩm tra.
 
-### Bước 4: Xác minh Thông tin Hành chính Chính thức
+### Bước 4: Xác minh Thông tin Hành chính & Đánh giá Nguồn gốc / Độ tươi mới (Provenance & Freshness Review)
 
-Kiểm tra và cập nhật các thông tin chính thức từ cơ quan nhà nước có thẩm quyền:
-- **Mã địa bàn**: Mã chuẩn theo danh mục hành chính (ví dụ: Phường Chợ Quán là `27301`, TP.HCM là `79`).
-- **Mô hình chính quyền**: Theo mô hình chính quyền đô thị mới, bỏ thuộc tính quận/huyện cũ nếu không còn cấp quận trung gian.
-- **Danh sách khu phố**: Nhập danh sách khu phố chính thức kèm mã định danh duy nhất (`code`) và tên gọi (`name`).
+Trước khi kích hoạt bất kỳ địa bàn nào, người vận hành bắt buộc đối soát hồ sơ nguồn gốc dữ liệu (Provenance Ledger) tại `deployments/<slug>/README.md` (ví dụ: [`deployments/cho-quan/README.md`](../../deployments/cho-quan/README.md)) và kiểm tra các thông tin chính thức từ cơ quan nhà nước có thẩm quyền:
+- **Mã địa bàn & Tỉnh/Thành phố**: Mã chuẩn theo danh mục hành chính nhà nước (ví dụ: Phường Chợ Quán là `27301`, TP.HCM là `79`). Bỏ phân cấp quận cũ theo mô hình chính quyền đô thị.
+- **Kênh liên hệ công khai**: Xác minh hotline công vụ và cổng thông tin điện tử; không cấu hình địa chỉ email công vụ nếu chưa được kiểm chứng độc lập.
+- **Rà soát rủi ro sắp xếp hành chính & Độ tươi mới (Reorganization & Freshness Review)**:
+  - Đối với các địa bàn đang thực hiện đề án sắp xếp lại khu phố (như Phường Chợ Quán với kế hoạch tổ chức lại khu phố vào tháng 06/2026), danh mục 25 khu phố hiện tại chỉ là dữ liệu tạm thời/trước sắp xếp.
+  - **Dữ liệu dự thảo không phải bằng chứng triển khai**: Sự tồn tại của danh sách khu phố trong tệp dự thảo (`confirmed: false`) **không phải là bằng chứng sẵn sàng triển khai (not deployable evidence)**.
+  - **Rào cản phê duyệt bắt buộc**: Bắt buộc phải thu thập và đối soát văn bản pháp lý chính thức cuối cùng (Nghị quyết của HĐND / Quyết định của UBND cấp có thẩm quyền) phê duyệt đề án sắp xếp và ban hành danh sách khu phố chính thức sau sắp xếp trước khi đặt `confirmed: true`.
+- **Mã khu phố nội bộ**: Gán mã kỹ thuật nội bộ tất định (`KP-01`, `KP-02`, ...) tương ứng với từng khu phố đã được chuẩn hóa. Tuyệt đối không nhầm lẫn mã kỹ thuật này với mã định danh hành chính của Nhà nước.
 
 ### Bước 5: Xác nhận Gói Triển khai (`confirmed: true`)
 
-Khi toàn bộ thông tin đã được kiểm chứng đầy đủ:
-1. Đặt `"confirmed": true` trong tệp `deployments/<slug>/deployment.json`.
-2. Bổ sung ít nhất 01 khu phố chính thức vào mảng `"neighborhoods"`.
+Khi toàn bộ thông tin đã được kiểm chứng và có văn bản pháp lý chính thức sau sắp xếp:
+1. Cập nhật danh sách khu phố chính thức vào mảng `"neighborhoods"` trong tệp `deployments/<slug>/deployment.json`.
+2. Đặt `"confirmed": true`.
+3. Bổ sung trường `"confirmedAt"` (thời gian xác nhận theo chuẩn ISO-8601, ví dụ: `"2026-08-26T00:00:00.000Z"`).
+4. Bổ sung trường `"confirmedBy"` ghi rõ danh tính/chức danh của người chịu trách nhiệm phê duyệt hồ sơ.
 
 ### Bước 6: Áp dụng Khởi tạo vào Cơ sở Dữ liệu (`--apply`)
 
