@@ -15,6 +15,7 @@ export interface HealthResponseDto {
     database?: ServiceHealth;
     redis?: ServiceHealth;
     rabbitmq?: ServiceHealth;
+    deployment?: ServiceHealth;
   };
 }
 

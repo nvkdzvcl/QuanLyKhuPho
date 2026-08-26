@@ -3,6 +3,10 @@
 import React from 'react';
 import type { UserDto } from '@quanlykhupho/shared-types';
 import { useAuth } from '../../lib/auth-context';
+import {
+  getDeploymentBrand,
+  useDeploymentProfile,
+} from '../../hooks/use-deployment-profile';
 import { NotificationBell } from '../shell/notification-bell';
 import type { NavigationItem } from './dashboard-navigation';
 
@@ -51,6 +55,9 @@ function BrandIcon({ className = 'h-7 w-7' }: { className?: string }) {
 
 export function ResidentWorkspace({ user, items, activeSection, onSectionChange, children }: ResidentWorkspaceProps) {
   const { logout } = useAuth();
+  const { data: deploymentData } = useDeploymentProfile();
+  const brandName = getDeploymentBrand(deploymentData?.profile);
+
   const activeItem = items.find((item) => item.id === activeSection) ?? items[0];
   const mobileItems = items.filter((item) => item.id !== 'create-petition');
   const mobileActiveSection = activeSection === 'create-petition' ? 'petitions' : activeSection;
@@ -60,7 +67,7 @@ export function ResidentWorkspace({ user, items, activeSection, onSectionChange,
       <aside className="hidden min-h-screen w-64 shrink-0 flex-col bg-gradient-to-b from-[#0b3f9c] via-[#0752bd] to-[#073a89] text-white shadow-xl lg:flex">
         <div className="flex h-[76px] items-center gap-3 border-b border-white/10 px-6">
           <BrandIcon />
-          <span className="text-base font-bold tracking-tight">Quản lý Khu phố</span>
+          <span className="text-base font-bold tracking-tight truncate">{brandName}</span>
         </div>
 
         <nav aria-label="Điều hướng Cư dân" className="flex-1 space-y-2 px-3 py-7">

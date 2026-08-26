@@ -1,6 +1,12 @@
 'use client';
 
 import React from 'react';
+import {
+  canAccessAuth,
+  getDeploymentBrand,
+  getDeploymentLocalityLabel,
+  useDeploymentProfile,
+} from '../../hooks/use-deployment-profile';
 
 interface PublicLandingProps {
   onOpenAuth: () => void;
@@ -78,24 +84,62 @@ function BrandMark({ className = 'h-12 w-12' }: { className?: string }) {
   );
 }
 
-const previewAnnouncements = [
-  { title: 'Lịch cắt điện định kỳ', meta: 'Khu phố 3, phường An Phú', time: '08:00, 25/05/2025', icon: 'lightning' as const, tone: 'bg-amber-50 text-amber-600' },
-  { title: 'Thông báo ra quân tổng vệ sinh', meta: 'Cả khu phố', time: '07:30, 28/05/2025', icon: 'megaphone' as const, tone: 'bg-blue-50 text-blue-600' },
-  { title: 'Hướng dẫn phân loại rác thải', meta: 'Cả khu phố', time: '09:00, 30/05/2025', icon: 'leaf' as const, tone: 'bg-emerald-50 text-emerald-600' },
-];
+function ProductPreview({
+  brandName,
+  localityName,
+}: {
+  brandName: string;
+  localityName?: string;
+}) {
+  const previewAnnouncements = [
+    {
+      title: 'Lịch cắt điện định kỳ',
+      meta: localityName ? `Khu phố 3, ${localityName}` : 'Khu phố 3, địa bàn mẫu',
+      time: '08:00, 25/05/2025',
+      icon: 'lightning' as const,
+      tone: 'bg-amber-50 text-amber-600',
+    },
+    {
+      title: 'Thông báo ra quân tổng vệ sinh',
+      meta: 'Cả khu phố',
+      time: '07:30, 28/05/2025',
+      icon: 'megaphone' as const,
+      tone: 'bg-blue-50 text-blue-600',
+    },
+    {
+      title: 'Hướng dẫn phân loại rác thải',
+      meta: 'Cả khu phố',
+      time: '09:00, 30/05/2025',
+      icon: 'leaf' as const,
+      tone: 'bg-emerald-50 text-emerald-600',
+    },
+  ];
 
-const previewPetitions = [
-  { title: 'Đèn đường không sáng', meta: 'Tuyến đường số 5', date: 'Ngày gửi: 20/05/2025', status: 'Đang xử lý', statusClass: 'bg-amber-50 text-amber-700' },
-  { title: 'Nắp cống bị hư', meta: 'Trước nhà số 12', date: 'Ngày gửi: 15/05/2025', status: 'Đã phản hồi', statusClass: 'bg-emerald-50 text-emerald-700' },
-];
+  const previewPetitions = [
+    {
+      title: 'Đèn đường không sáng',
+      meta: 'Tuyến đường số 5',
+      date: 'Ngày gửi: 20/05/2025',
+      status: 'Đang xử lý',
+      statusClass: 'bg-amber-50 text-amber-700',
+    },
+    {
+      title: 'Nắp cống bị hư',
+      meta: 'Trước nhà số 12',
+      date: 'Ngày gửi: 15/05/2025',
+      status: 'Đã phản hồi',
+      statusClass: 'bg-emerald-50 text-emerald-700',
+    },
+  ];
 
-function ProductPreview() {
   return (
-    <div className="relative mx-auto w-full max-w-[900px]" aria-label="Bản xem trước giao diện Quản lý Khu phố">
+    <div className="relative mx-auto w-full max-w-[900px]" aria-label={`Bản xem trước giao diện ${brandName}`}>
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:rounded-[14px] md:shadow-[0_24px_70px_rgba(30,64,175,0.14)]">
         <div className="grid md:min-h-[430px] md:grid-cols-[140px_1fr] xl:grid-cols-[150px_1fr]">
           <aside className="hidden border-r border-slate-200 bg-white p-4 md:flex md:flex-col" aria-hidden="true">
-            <div className="flex items-center gap-2 text-xs font-extrabold text-slate-950"><BrandMark className="h-7 w-7" /> Quản lý Khu phố</div>
+            <div className="flex items-center gap-2 text-xs font-extrabold text-slate-950">
+              <BrandMark className="h-7 w-7" /> {brandName}
+            </div>
             <div className="mt-6 space-y-2 text-[11px] font-medium">
               <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2.5 text-blue-700"><LandingIcon name="home" className="h-4 w-4" /> Trang chủ</div>
               <div className="flex items-center gap-2 px-3 py-2.5 text-slate-600"><LandingIcon name="bell" className="h-4 w-4" /> Thông báo</div>
@@ -171,28 +215,174 @@ function CompactSteps() {
 
 export function PublicLanding({ onOpenAuth }: PublicLandingProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const {
+    data: profileResponse,
+    isLoading,
+    isError,
+    refetch,
+  } = useDeploymentProfile();
+
+  const profile = profileResponse?.profile;
+  const brandName = getDeploymentBrand(profile);
+  const localityLabel = getDeploymentLocalityLabel(profile);
+  const authAccess = canAccessAuth(profileResponse);
+
+  const handleOpenAuth = () => {
+    if (!authAccess.allowed) {
+      return;
+    }
+    onOpenAuth();
+  };
 
   return (
     <div className="min-h-screen bg-white text-slate-950">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex min-h-16 w-full max-w-[1540px] items-center justify-between gap-4 px-4 sm:min-h-[76px] sm:px-6 lg:px-10">
-          <a href="#main-content" className="flex min-w-0 items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2" aria-label="Quản lý Khu phố - về nội dung chính">
+          <a
+            href="#main-content"
+            className="flex min-w-0 items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+            aria-label={`${brandName} - về nội dung chính`}
+          >
             <BrandMark className="h-9 w-9 sm:h-12 sm:w-12" />
-            <span className="min-w-0"><span className="block truncate text-sm font-extrabold uppercase tracking-[0.02em] text-slate-950 min-[360px]:text-base sm:text-xl">Quản lý Khu phố</span><span className="hidden truncate text-xs text-slate-500 sm:block">Cổng thông tin phục vụ cộng đồng</span></span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-extrabold uppercase tracking-[0.02em] text-slate-950 min-[360px]:text-base sm:text-xl">
+                {brandName}
+              </span>
+              <span className="hidden truncate text-xs text-slate-500 sm:block">
+                {localityLabel ? `Cổng thông tin ${localityLabel}` : 'Cổng thông tin phục vụ cộng đồng'}
+              </span>
+            </span>
           </a>
           <div className="flex shrink-0 items-center gap-3 sm:gap-6">
-            <a href="#how-it-works" className="hidden rounded-lg px-2 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 md:inline-flex">Cách hoạt động</a>
-            <button type="button" onClick={onOpenAuth} className="hidden rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition duration-200 hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 sm:inline-flex">
+            <a
+              href="#how-it-works"
+              className="hidden rounded-lg px-2 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 md:inline-flex"
+            >
+              Cách hoạt động
+            </a>
+            <button
+              type="button"
+              onClick={handleOpenAuth}
+              disabled={!authAccess.allowed}
+              title={authAccess.reason}
+              className={`hidden rounded-lg px-5 py-2.5 text-sm font-bold text-white shadow-sm transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 sm:inline-flex ${
+                authAccess.allowed
+                  ? 'bg-blue-600 hover:bg-blue-700'
+                  : 'bg-slate-400 cursor-not-allowed opacity-75'
+              }`}
+            >
               Đăng nhập / Đăng ký
             </button>
-            <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-blue-600 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 sm:hidden" aria-label="Mở trình đơn" aria-controls="mobile-navigation" aria-expanded={isMobileMenuOpen} onClick={() => setIsMobileMenuOpen((isOpen) => !isOpen)}><LandingIcon name="menu" className="h-6 w-6" /></button>
+            <button
+              type="button"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-blue-600 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 sm:hidden"
+              aria-label="Mở trình đơn"
+              aria-controls="mobile-navigation"
+              aria-expanded={isMobileMenuOpen}
+              onClick={() => setIsMobileMenuOpen((isOpen) => !isOpen)}
+            >
+              <LandingIcon name="menu" className="h-6 w-6" />
+            </button>
           </div>
         </div>
+
+        {/* Status Notices */}
+        {isLoading && (
+          <div
+            className="border-t border-blue-100 bg-blue-50/50 px-4 py-2 text-center text-xs text-blue-700"
+            role="status"
+          >
+            Đang đồng bộ thông tin địa bàn...
+          </div>
+        )}
+
+        {isError && (
+          <div
+            className="border-t border-red-200 bg-red-50 px-4 py-2.5 text-center text-xs text-red-800"
+            role="alert"
+          >
+            <div className="mx-auto flex max-w-[1540px] flex-wrap items-center justify-center gap-2">
+              <span>Không thể tải thông tin địa bàn từ máy chủ.</span>
+              <button
+                type="button"
+                onClick={() => void refetch()}
+                className="font-bold underline hover:text-red-950 focus:outline-none"
+              >
+                Thử lại
+              </button>
+            </div>
+          </div>
+        )}
+
+        {profileResponse && !profileResponse.initialized && (
+          <div
+            className={`border-t px-4 py-2.5 text-center text-xs ${
+              authAccess.isDevelopmentBypass
+                ? 'border-blue-200 bg-blue-50 text-blue-900'
+                : 'border-amber-200 bg-amber-50 text-amber-900 font-medium'
+            }`}
+            role={authAccess.isDevelopmentBypass ? undefined : 'alert'}
+          >
+            <div className="mx-auto max-w-[1540px]">
+              {authAccess.isDevelopmentBypass ? (
+                <>
+                  <span className="font-bold">Môi trường phát triển:</span> Cơ sở dữ liệu chưa có hồ sơ địa bàn (Deployment Profile). Đăng nhập thử nghiệm vẫn được kích hoạt.
+                </>
+              ) : (
+                <>
+                  <span className="font-bold">Hệ thống chưa khởi tạo địa bàn:</span> Tính năng đăng nhập và đăng ký tạm thời bị khóa trong môi trường vận hành cho đến khi có cấu hình được xác nhận.
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {profileResponse?.initialized && profile && !profile.confirmed && (
+          <div
+            className={`border-t px-4 py-2.5 text-center text-xs ${
+              authAccess.isDevelopmentBypass
+                ? 'border-amber-200 bg-amber-50/80 text-amber-900'
+                : 'border-amber-200 bg-amber-50 text-amber-900 font-medium'
+            }`}
+            role={authAccess.isDevelopmentBypass ? undefined : 'alert'}
+          >
+            <div className="mx-auto max-w-[1540px]">
+              {authAccess.isDevelopmentBypass ? (
+                <>
+                  <span className="font-bold">Chế độ phát triển:</span> Cấu hình địa bàn &ldquo;{profile.localityName}&rdquo; đang ở trạng thái dự thảo. Đăng nhập thử nghiệm vẫn khả dụng.
+                </>
+              ) : (
+                <>
+                  <span className="font-bold">Cấu hình chưa xác nhận:</span> Hồ sơ địa bàn &ldquo;{profile.localityName}&rdquo; đang ở trạng thái dự thảo. Đăng nhập tạm dừng trên môi trường chính thức.
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {isMobileMenuOpen && (
           <nav id="mobile-navigation" className="absolute inset-x-0 top-full border-b border-slate-200 bg-white p-4 shadow-lg sm:hidden" aria-label="Điều hướng di động">
             <div className="mx-auto grid max-w-lg gap-2">
-              <a href="#mobile-quick-start" onClick={() => setIsMobileMenuOpen(false)} className="flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cách hoạt động</a>
-              <button type="button" onClick={() => { setIsMobileMenuOpen(false); onOpenAuth(); }} className="min-h-11 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white">Đăng nhập / Đăng ký</button>
+              <a
+                href="#mobile-quick-start"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cách hoạt động
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  handleOpenAuth();
+                }}
+                disabled={!authAccess.allowed}
+                className={`min-h-11 rounded-lg px-4 text-sm font-bold text-white ${
+                  authAccess.allowed ? 'bg-blue-600' : 'bg-slate-400 cursor-not-allowed'
+                }`}
+              >
+                Đăng nhập / Đăng ký
+              </button>
             </div>
           </nav>
         )}
@@ -208,28 +398,70 @@ export function PublicLanding({ onOpenAuth }: PublicLandingProps) {
 
           <div className="relative mx-auto grid w-full max-w-[1540px] items-center gap-6 px-4 py-7 sm:gap-10 sm:px-6 sm:py-16 lg:grid-cols-[0.82fr_1.18fr] lg:gap-8 lg:px-10 lg:py-20 xl:gap-12">
             <div className="max-w-2xl">
-              <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-blue-600 sm:text-sm">Cổng thông tin khu phố</p>
-              <h1 className="mt-3 text-[2rem] font-extrabold leading-[1.1] tracking-tight text-blue-950 min-[390px]:text-[2.15rem] sm:mt-5 sm:text-5xl sm:leading-[1.12] lg:text-[3.25rem] xl:text-[3.5rem]">Kết nối cộng đồng, phục vụ người dân thuận tiện hơn</h1>
-              <p className="mt-4 max-w-xl text-sm leading-6 text-slate-600 sm:mt-5 sm:text-lg sm:leading-7"><span className="sm:hidden">Nhận thông báo chính thức, gửi kiến nghị và theo dõi tiến độ xử lý an toàn, minh bạch.</span><span className="hidden sm:inline">Nhận thông báo chính thức, gửi kiến nghị và theo dõi tiến độ xử lý trên một nền tảng an toàn, minh bạch.</span></p>
+              <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-blue-600 sm:text-sm">
+                {profile ? `Cổng thông tin ${profile.localityName}` : 'Cổng thông tin khu phố'}
+              </p>
+              <h1 className="mt-3 text-[2rem] font-extrabold leading-[1.1] tracking-tight text-blue-950 min-[390px]:text-[2.15rem] sm:mt-5 sm:text-5xl sm:leading-[1.12] lg:text-[3.25rem] xl:text-[3.5rem]">
+                Kết nối cộng đồng, phục vụ người dân thuận tiện hơn
+              </h1>
+              <p className="mt-4 max-w-xl text-sm leading-6 text-slate-600 sm:mt-5 sm:text-lg sm:leading-7">
+                <span className="sm:hidden">
+                  Nhận thông báo chính thức, gửi kiến nghị và theo dõi tiến độ xử lý an toàn, minh bạch.
+                </span>
+                <span className="hidden sm:inline">
+                  Nhận thông báo chính thức, gửi kiến nghị và theo dõi tiến độ xử lý trên một nền tảng an toàn, minh bạch.
+                </span>
+              </p>
 
               <div className="mt-5 flex flex-col gap-3 sm:mt-7 sm:max-w-[430px]">
-                <button type="button" onClick={onOpenAuth} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/15 transition duration-200 hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 sm:text-base"><LandingIcon name="lock" className="h-5 w-5" />Đăng nhập / Đăng ký bằng OTP</button>
-                <a href="#how-it-works" className="hidden min-h-12 items-center justify-center gap-2 rounded-lg border border-blue-600 bg-white px-5 py-3 text-sm font-bold text-blue-700 transition duration-200 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 sm:inline-flex sm:text-base">Xem cách hoạt động <LandingIcon name="chevron" className="h-4 w-4" /></a>
+                <button
+                  type="button"
+                  onClick={handleOpenAuth}
+                  disabled={!authAccess.allowed}
+                  title={authAccess.reason}
+                  className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/15 transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 sm:text-base ${
+                    authAccess.allowed
+                      ? 'bg-blue-600 hover:bg-blue-700'
+                      : 'bg-slate-400 cursor-not-allowed opacity-75'
+                  }`}
+                >
+                  <LandingIcon name="lock" className="h-5 w-5" />
+                  Đăng nhập / Đăng ký bằng OTP
+                </button>
+                {!authAccess.allowed && authAccess.reason && (
+                  <p className="text-xs text-amber-700 leading-normal">
+                    {authAccess.reason}
+                  </p>
+                )}
+                <a
+                  href="#how-it-works"
+                  className="hidden min-h-12 items-center justify-center gap-2 rounded-lg border border-blue-600 bg-white px-5 py-3 text-sm font-bold text-blue-700 transition duration-200 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 sm:inline-flex sm:text-base"
+                >
+                  Xem cách hoạt động <LandingIcon name="chevron" className="h-4 w-4" />
+                </a>
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3 text-xs font-medium text-slate-600 sm:mt-7 sm:flex sm:flex-wrap sm:gap-x-5">
-                {trustItems.map((item, index) => <div key={item.label} className={`items-center gap-2 ${index === 2 ? 'hidden sm:flex' : 'flex'}`}><LandingIcon name={item.icon} className={`h-5 w-5 ${item.className}`} /><span className="sm:hidden">{item.compactLabel}</span><span className="hidden sm:inline">{item.label}</span></div>)}
+                {trustItems.map((item, index) => (
+                  <div key={item.label} className={`items-center gap-2 ${index === 2 ? 'hidden sm:flex' : 'flex'}`}>
+                    <LandingIcon name={item.icon} className={`h-5 w-5 ${item.className}`} />
+                    <span className="sm:hidden">{item.compactLabel}</span>
+                    <span className="hidden sm:inline">{item.label}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
             <CompactSteps />
-            <ProductPreview />
+            <ProductPreview brandName={brandName} localityName={profile?.localityName} />
           </div>
         </section>
 
         <section id="how-it-works" className="hidden scroll-mt-24 bg-white px-4 py-10 sm:px-6 sm:py-14 lg:block lg:px-10" aria-labelledby="how-it-works-title">
           <div className="mx-auto max-w-[1450px] rounded-2xl border border-blue-100 bg-blue-50/30 px-5 py-7 sm:px-8 lg:px-12">
-            <h2 id="how-it-works-title" className="text-center text-2xl font-extrabold tracking-tight text-blue-950 sm:text-3xl">Bắt đầu chỉ trong 3 bước</h2>
+            <h2 id="how-it-works-title" className="text-center text-2xl font-extrabold tracking-tight text-blue-950 sm:text-3xl">
+              Bắt đầu chỉ trong 3 bước
+            </h2>
             <ol className="mt-7 grid gap-5 lg:grid-cols-3 lg:gap-8">
               {steps.map((step, index) => (
                 <li key={step.title} className="relative flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
@@ -246,8 +478,8 @@ export function PublicLanding({ onOpenAuth }: PublicLandingProps) {
 
       <footer className="border-t border-slate-200 bg-slate-50 py-5">
         <div className="mx-auto flex max-w-[1540px] flex-col items-center justify-between gap-2 px-4 text-center text-xs text-slate-500 sm:flex-row sm:px-6 sm:text-left lg:px-10">
-          <p>© 2026 Quản lý Khu phố</p>
-          <p>Cổng thông tin phục vụ cộng đồng dân cư</p>
+          <p>© 2026 {brandName}</p>
+          <p>{localityLabel ? `Cổng thông tin phục vụ cộng đồng dân cư ${localityLabel}` : 'Cổng thông tin phục vụ cộng đồng dân cư'}</p>
         </div>
       </footer>
     </div>

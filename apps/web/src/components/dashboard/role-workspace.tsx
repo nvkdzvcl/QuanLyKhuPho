@@ -3,6 +3,10 @@
 import React from 'react';
 import type { UserDto } from '@quanlykhupho/shared-types';
 import { useAuth } from '../../lib/auth-context';
+import {
+  getDeploymentBrand,
+  useDeploymentProfile,
+} from '../../hooks/use-deployment-profile';
 import { NotificationBell } from '../shell/notification-bell';
 import type { NavigationItem } from './dashboard-navigation';
 
@@ -93,6 +97,9 @@ function getInitials(fullName: string) {
 
 export function RoleWorkspace({ user, title, subtitle, badgeText, accentColor = 'amber', items, activeSection, onSectionChange, headerActions, children, ariaLabel = 'Điều hướng quản lý' }: RoleWorkspaceProps) {
   const { logout } = useAuth();
+  const { data: deploymentData } = useDeploymentProfile();
+  const brandName = getDeploymentBrand(deploymentData?.profile);
+
   const styles = ACCENT_STYLES[accentColor];
   const activeItem = items.find((item) => item.id === activeSection) ?? items[0];
   const heading = activeSection === 'overview' ? title : activeItem?.label ?? title;
@@ -102,7 +109,7 @@ export function RoleWorkspace({ user, title, subtitle, badgeText, accentColor = 
       <aside className="hidden min-h-screen w-64 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
         <div className={`flex h-[72px] items-center gap-3 px-6 text-white ${styles.brand}`}>
           <BrandIcon accentColor={accentColor} />
-          <span className="text-base font-bold tracking-tight">Quản lý Khu phố</span>
+          <span className="text-base font-bold tracking-tight truncate">{brandName}</span>
         </div>
 
         <nav aria-label={ariaLabel} className="flex-1 space-y-1 overflow-y-auto px-3 py-5">

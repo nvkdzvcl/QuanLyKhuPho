@@ -5,6 +5,7 @@ import { Alert, Badge, Button } from '@quanlykhupho/ui';
 import { PetitionCategory, type WardOverviewDto } from '@quanlykhupho/shared-types';
 import { usePetitionCategoryAnalytics } from '../../hooks/use-dashboard';
 import { getErrorMessage } from '../../lib/api-client';
+import { DeploymentStatusCard } from '../deployments/deployment-status-card';
 
 export interface OfficerOverviewProps {
   overview?: WardOverviewDto;
@@ -80,12 +81,16 @@ export function OfficerOverview({ overview, fallbackNeighborhoodCount, pendingRe
 
   return (
     <div className="space-y-6">
+      {/* Metric summary cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="khu phố" value={isLoading ? '…' : overview?.neighborhoodCount ?? fallbackNeighborhoodCount} icon="home" onClick={() => onNavigateSection('analytics')} />
         <MetricCard label="cư dân" value={isLoading ? '…' : (overview?.residentCount ?? 0).toLocaleString('vi-VN')} icon="users" onClick={() => onNavigateSection('resident-profiles')} />
         <MetricCard label="kiến nghị" value={isLoading ? '…' : overview?.petitionsByStatus.total ?? 0} icon="message" onClick={() => onNavigateSection('petitions')} />
         <MetricCard label="hồ sơ chờ duyệt" value={isLoading ? '…' : pendingResidentsCount} icon="document" onClick={() => onNavigateSection('pending-residents')} />
       </div>
+
+      {/* Locality Deployment Profile Status */}
+      <DeploymentStatusCard />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:p-6">

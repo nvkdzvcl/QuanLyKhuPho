@@ -32,13 +32,14 @@ export class HealthService {
     const environment = this.configService.get<string>('NODE_ENV', 'development');
     const timeoutMs = this.configService.get<number>('HEALTH_PROBE_TIMEOUT_MS', 1000);
 
-    const [database, redis, rabbitmq] = await Promise.all([
+    const [database, redis, rabbitmq, deployment] = await Promise.all([
       this.probeDatabase(timeoutMs),
       this.probeRedis(timeoutMs),
       this.probeRabbitMQ(),
+      this.probeDeployment(environment),
     ]);
 
-    const status = this.calculateOverallStatus({ database, redis, rabbitmq });
+    const status = this.calculateOverallStatus({ database, redis, rabbitmq, deployment });
 
     return {
       status,
@@ -49,6 +50,7 @@ export class HealthService {
         database,
         redis,
         rabbitmq,
+        deployment,
       },
     };
   }
@@ -86,10 +88,49 @@ export class HealthService {
     }
   }
 
+  private async probeDeployment(environment: string): Promise<ServiceHealth> {
+    const isProduction = environment === 'production';
+    try {
+      const profile = await this.prismaService.deploymentProfile.findUnique({
+        where: { singletonKey: 'SINGLETON' },
+        select: { confirmed: true },
+      });
+
+      if (!profile) {
+        return {
+          status: isProduction ? 'down' : 'degraded',
+          message: isProduction
+            ? 'Deployment profile is not initialized'
+            : 'Deployment profile is uninitialized (non-production)',
+        };
+      }
+
+      if (!profile.confirmed) {
+        return {
+          status: isProduction ? 'down' : 'degraded',
+          message: isProduction
+            ? 'Deployment profile is unconfirmed'
+            : 'Deployment profile is unconfirmed (non-production)',
+        };
+      }
+
+      return {
+        status: 'ok',
+        message: 'Deployment profile is confirmed',
+      };
+    } catch {
+      return {
+        status: isProduction ? 'down' : 'degraded',
+        message: 'Deployment profile check unavailable',
+      };
+    }
+  }
+
   private calculateOverallStatus(services: {
     database: ServiceHealth;
     redis: ServiceHealth;
     rabbitmq: ServiceHealth;
+    deployment: ServiceHealth;
   }): HealthStatus {
     const statuses = Object.values(services).map((service) => service.status);
     if (statuses.includes('down')) {

@@ -2,7 +2,9 @@ import { Controller, Get, HttpStatus, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { HealthService } from './health.service';
 import { HealthResponseDto, LivenessResponseDto } from '@quanlykhupho/shared-types';
+import { AllowUninitializedDeployment } from '../deployments/allow-uninitialized-deployment.decorator';
 
+@AllowUninitializedDeployment()
 @Controller('health')
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}

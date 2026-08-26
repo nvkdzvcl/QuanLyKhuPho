@@ -115,14 +115,14 @@ export function getOfficerNavigationItems(
   const pendingCount = counts?.pendingResidentsCount ?? 0;
 
   return [
-    { id: 'overview', label: 'Tổng quan Phường', shortLabel: 'Tổng quan', description: 'Chỉ số giám sát và thống kê toàn phường', iconName: 'overview', group: 'Quản lý' },
+    { id: 'overview', label: 'Tổng quan địa bàn', shortLabel: 'Tổng quan', description: 'Chỉ số giám sát và thống kê toàn địa bàn', iconName: 'overview', group: 'Quản lý' },
     { id: 'analytics', label: 'Khu phố', shortLabel: 'Khu phố', description: 'Số liệu chi tiết từng tổ dân phố / khu phố', iconName: 'overview', group: 'Quản lý' },
     { id: 'leaders', label: 'Quản lý Tổ trưởng', shortLabel: 'Quản lý Tổ trưởng', description: 'Danh sách và bổ nhiệm Trưởng khu phố mới', iconName: 'user-plus', group: 'Quản lý' },
     { id: 'announcements', label: 'Thông báo', shortLabel: 'Thông báo', description: 'Phát hành thông báo diện rộng tới toàn bộ khu phố', iconName: 'megaphone', group: 'Quản lý' },
     { id: 'petitions', label: 'Kiến nghị', shortLabel: 'Kiến nghị', description: 'Theo dõi tiến độ giải quyết kiến nghị của khu phố', iconName: 'inbox', group: 'Quản lý' },
-    { id: 'resident-profiles', label: 'Hồ sơ dân cư', shortLabel: 'Hồ sơ dân cư', description: 'Tra cứu nhân khẩu và trích xuất dữ liệu phường', iconName: 'file-text', group: 'Quản lý' },
+    { id: 'resident-profiles', label: 'Hồ sơ dân cư', shortLabel: 'Hồ sơ dân cư', description: 'Tra cứu nhân khẩu và trích xuất dữ liệu địa bàn', iconName: 'file-text', group: 'Quản lý' },
     { id: 'activities', label: 'Hoạt động', shortLabel: 'Hoạt động', description: 'Tổng hợp phong trào các khu phố trực thuộc', iconName: 'book', group: 'Quản lý' },
-    { id: 'reports', label: 'Báo cáo', shortLabel: 'Báo cáo', description: 'Xuất báo cáo tháng, quý và năm toàn phường', iconName: 'bar-chart', group: 'Quản lý' },
+    { id: 'reports', label: 'Báo cáo', shortLabel: 'Báo cáo', description: 'Xuất báo cáo tháng, quý và năm toàn địa bàn', iconName: 'bar-chart', group: 'Quản lý' },
     { id: 'political-social', label: 'Chính trị - Xã hội', shortLabel: 'Chính trị - Xã hội', description: 'Thống kê Đảng viên và đoàn thể các khu phố', iconName: 'award', group: 'Quản lý' },
     { id: 'pending-residents', label: 'Hồ sơ chờ duyệt', shortLabel: 'Hồ sơ chờ duyệt', description: 'Theo dõi hàng đợi xét duyệt của các Trưởng khu phố', iconName: 'user-check', badge: pendingCount > 0 ? { count: pendingCount, variant: 'info' } : undefined, group: 'Quản lý' },
   ];

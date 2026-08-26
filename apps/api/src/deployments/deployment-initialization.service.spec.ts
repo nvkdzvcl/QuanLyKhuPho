@@ -656,14 +656,26 @@ describe('Deployment Profile & Initialization', () => {
         expect(thirdResult.neighborhoodsUpdated).toBe(0);
       });
 
-      it('rejects apply when existing database is initialized for a different locality', async () => {
+      it('rejects apply when existing database is initialized for a different locality and proves zero database writes occur', async () => {
         // Initialize for Ben Nghe
-        await service.initializeDeployment({
+        const initialResult = await service.initializeDeployment({
           package: sampleValidConfirmedPackage,
           apply: true,
         });
+        expect(initialResult.success).toBe(true);
+        expect(mockProfiles).toHaveLength(1);
+        expect(mockNeighborhoods).toHaveLength(2);
 
-        // Attempt apply of confirmed Cho Quan profile
+        // Snapshot database state before the conflicting apply
+        const profileSnapshot = JSON.stringify(mockProfiles);
+        const neighborhoodsSnapshot = JSON.stringify(mockNeighborhoods);
+
+        const createProfileSpy = vi.spyOn(prisma.deploymentProfile, 'create');
+        const updateProfileSpy = vi.spyOn(prisma.deploymentProfile, 'update');
+        const createNeighSpy = vi.spyOn(prisma.neighborhood, 'create');
+        const updateNeighSpy = vi.spyOn(prisma.neighborhood, 'update');
+
+        // Attempt apply of confirmed Cho Quan profile (different slug, localityCode, localityName)
         const confirmedChoQuan: DeploymentPackage = {
           ...sampleValidDraftPackage,
           confirmed: true,
@@ -678,9 +690,63 @@ describe('Deployment Profile & Initialization', () => {
           }),
         ).rejects.toThrow(/Locality conflict/);
 
-        // Existing Ben Nghe profile untouched
+        // Zero writes occurred during failed apply
+        expect(createProfileSpy).not.toHaveBeenCalled();
+        expect(updateProfileSpy).not.toHaveBeenCalled();
+        expect(createNeighSpy).not.toHaveBeenCalled();
+        expect(updateNeighSpy).not.toHaveBeenCalled();
+
+        // Stored profile state is completely untouched and unchanged
         expect(mockProfiles).toHaveLength(1);
         expect(mockProfiles[0]?.slug).toBe('phuong-ben-nghe');
+        expect(mockProfiles[0]?.localityCode).toBe('771-01');
+        expect(mockProfiles[0]?.localityName).toBe('Phường Bến Nghé');
+        expect(JSON.stringify(mockProfiles)).toBe(profileSnapshot);
+
+        // Stored neighborhoods are completely untouched (no CQ-01, no edits to KP-01/KP-02)
+        expect(mockNeighborhoods).toHaveLength(2);
+        expect(mockNeighborhoods.map((n) => n.code)).toEqual(['KP-01', 'KP-02']);
+        expect(JSON.stringify(mockNeighborhoods)).toBe(neighborhoodsSnapshot);
+      });
+
+      it('rejects apply when existing database profile differs in localityCode or provinceCode even with same slug', async () => {
+        // Initialize for Ben Nghe
+        await service.initializeDeployment({
+          package: sampleValidConfirmedPackage,
+          apply: true,
+        });
+
+        const profileSnapshot = JSON.stringify(mockProfiles);
+        const neighborhoodsSnapshot = JSON.stringify(mockNeighborhoods);
+
+        const createProfileSpy = vi.spyOn(prisma.deploymentProfile, 'create');
+        const updateProfileSpy = vi.spyOn(prisma.deploymentProfile, 'update');
+        const createNeighSpy = vi.spyOn(prisma.neighborhood, 'create');
+        const updateNeighSpy = vi.spyOn(prisma.neighborhood, 'update');
+
+        // Confirmed package with same slug but different localityCode
+        const conflictingLocalityCodePackage: DeploymentPackage = {
+          ...sampleValidConfirmedPackage,
+          locality: {
+            ...sampleValidConfirmedPackage.locality,
+            code: 'DIFFERENT-CODE-999',
+          },
+        };
+
+        await expect(
+          service.initializeDeployment({
+            package: conflictingLocalityCodePackage,
+            apply: true,
+          }),
+        ).rejects.toThrow(/Locality conflict/);
+
+        expect(createProfileSpy).not.toHaveBeenCalled();
+        expect(updateProfileSpy).not.toHaveBeenCalled();
+        expect(createNeighSpy).not.toHaveBeenCalled();
+        expect(updateNeighSpy).not.toHaveBeenCalled();
+
+        expect(JSON.stringify(mockProfiles)).toBe(profileSnapshot);
+        expect(JSON.stringify(mockNeighborhoods)).toBe(neighborhoodsSnapshot);
       });
 
       it('rejects apply when neighborhood code exists with conflicting name', async () => {

@@ -22,6 +22,7 @@ import {
 } from '../../hooks/use-pending-residents';
 import { useWardOverview } from '../../hooks/use-dashboard';
 import { getErrorMessage } from '../../lib/api-client';
+import { useDeploymentProfile } from '../../hooks/use-deployment-profile';
 
 import {
   getOfficerNavigationItems,
@@ -45,6 +46,8 @@ interface OfficerViewProps {
 }
 
 export function OfficerView({ user }: OfficerViewProps) {
+  const { data: deploymentData } = useDeploymentProfile();
+  const localityName = deploymentData?.profile?.localityName;
   const [activeSection, setActiveSection] = useState<string>('overview');
   const [activityCreationSeed, setActivityCreationSeed] =
     useState<ActivityCreationSeed | null>(null);
@@ -160,15 +163,15 @@ export function OfficerView({ user }: OfficerViewProps) {
   return (
     <RoleWorkspace
       user={user}
-      title="Tổng quan Phường"
+      title={localityName ? `Tổng quan ${localityName}` : 'Tổng quan địa bàn'}
       subtitle={
         <span>
-          Cán bộ: <strong>{user.fullName}</strong> ({user.maskedPhone}) • Phân quyền cấp Phường
+          Cán bộ: <strong>{user.fullName}</strong> ({user.maskedPhone}) • Phân quyền {localityName ?? 'cấp địa bàn'}
         </span>
       }
-      badgeText="Cán bộ phường"
+      badgeText="Cán bộ địa phương"
       accentColor="blue"
-      ariaLabel="Điều hướng quản trị cấp phường"
+      ariaLabel="Điều hướng quản trị địa bàn"
       items={navItems}
       activeSection={currentSection}
       onSectionChange={setActiveSection}
