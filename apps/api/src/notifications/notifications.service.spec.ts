@@ -5,6 +5,7 @@ import { NotificationsService } from './notifications.service';
 import { NotificationType } from '@quanlykhupho/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { CryptoService } from '../security/crypto.service';
+import { OperationalMetricsService } from '../observability/operational-metrics.service';
 
 vi.mock('web-push', () => ({
   setVapidDetails: vi.fn(),
@@ -36,8 +37,16 @@ describe('NotificationsService', () => {
     encrypt: ReturnType<typeof vi.fn>;
     decrypt: ReturnType<typeof vi.fn>;
   };
+  let metricsServiceMock: {
+    recordPushAttempt: ReturnType<typeof vi.fn>;
+    recordPushSuccess: ReturnType<typeof vi.fn>;
+    recordPushFailure: ReturnType<typeof vi.fn>;
+    recordPushStalePruned: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
+    vi.clearAllMocks();
+
     prismaMock = {
       notification: {
         create: vi.fn(),
@@ -70,10 +79,18 @@ describe('NotificationsService', () => {
       decrypt: vi.fn((val: string) => val.replace('encrypted_', '')),
     };
 
+    metricsServiceMock = {
+      recordPushAttempt: vi.fn(),
+      recordPushSuccess: vi.fn(),
+      recordPushFailure: vi.fn(),
+      recordPushStalePruned: vi.fn(),
+    };
+
     service = new NotificationsService(
       prismaMock as unknown as PrismaService,
       configServiceMock as unknown as ConfigService,
       cryptoServiceMock as unknown as CryptoService,
+      metricsServiceMock as unknown as OperationalMetricsService,
     );
     service.onModuleInit();
   });
@@ -173,7 +190,7 @@ describe('NotificationsService', () => {
     });
   });
 
-  it('should decrypt auth secret before sending push notification', async () => {
+  it('should decrypt auth secret before sending push notification and record attempt and success metrics', async () => {
     prismaMock.pushSubscription.findMany.mockResolvedValue([
       {
         id: 'sub-1',
@@ -202,9 +219,42 @@ describe('NotificationsService', () => {
       },
       expect.any(String),
     );
+
+    expect(metricsServiceMock.recordPushAttempt).toHaveBeenCalledTimes(1);
+    expect(metricsServiceMock.recordPushSuccess).toHaveBeenCalledTimes(1);
+    expect(metricsServiceMock.recordPushFailure).not.toHaveBeenCalled();
+    expect(metricsServiceMock.recordPushStalePruned).not.toHaveBeenCalled();
   });
 
-  it('should send push notification and prune 404/410 subscriptions', async () => {
+  it('should record push failure when decrypting auth secret fails and not attempt send', async () => {
+    prismaMock.pushSubscription.findMany.mockResolvedValue([
+      {
+        id: 'sub-corrupt',
+        endpoint: 'https://push.example.com/sub/corrupt',
+        p256dh: 'public-key-corrupt',
+        auth: 'corrupt-auth-data',
+      },
+    ]);
+
+    cryptoServiceMock.decrypt.mockImplementationOnce(() => {
+      throw new Error('Decryption failed');
+    });
+
+    const mockedSend = vi.mocked(webpush.sendNotification);
+
+    await service.sendPushNotifications(['user-1'], {
+      title: 'Hello',
+      body: 'World',
+    });
+
+    expect(mockedSend).not.toHaveBeenCalled();
+    expect(metricsServiceMock.recordPushAttempt).toHaveBeenCalledTimes(1);
+    expect(metricsServiceMock.recordPushFailure).toHaveBeenCalledTimes(1);
+    expect(metricsServiceMock.recordPushSuccess).not.toHaveBeenCalled();
+    expect(metricsServiceMock.recordPushStalePruned).not.toHaveBeenCalled();
+  });
+
+  it('should send push notification and prune 404/410 subscriptions, recording attempt, failure and stalePruned metrics', async () => {
     prismaMock.pushSubscription.findMany.mockResolvedValue([
       {
         id: 'sub-valid',
@@ -232,6 +282,115 @@ describe('NotificationsService', () => {
     expect(prismaMock.pushSubscription.delete).toHaveBeenCalledWith({
       where: { id: 'sub-expired' },
     });
+    expect(metricsServiceMock.recordPushAttempt).toHaveBeenCalledTimes(2);
+    expect(metricsServiceMock.recordPushSuccess).toHaveBeenCalledTimes(1);
+    expect(metricsServiceMock.recordPushFailure).toHaveBeenCalledTimes(1);
+    expect(metricsServiceMock.recordPushStalePruned).toHaveBeenCalledTimes(1);
+  });
+
+  it('should record push failure but not stalePruned when 404/410 deletion throws', async () => {
+    prismaMock.pushSubscription.findMany.mockResolvedValue([
+      {
+        id: 'sub-expired',
+        endpoint: 'https://push.example.com/expired',
+        p256dh: 'key-exp',
+        auth: 'encrypted_exp',
+      },
+    ]);
+
+    const mockedSend = vi.mocked(webpush.sendNotification);
+    mockedSend.mockRejectedValueOnce({ statusCode: 404 });
+    prismaMock.pushSubscription.delete.mockRejectedValueOnce(new Error('Prisma delete failure'));
+
+    await service.sendPushNotifications(['user-1'], {
+      title: 'Hello',
+      body: 'World',
+    });
+
+    expect(metricsServiceMock.recordPushAttempt).toHaveBeenCalledTimes(1);
+    expect(metricsServiceMock.recordPushFailure).toHaveBeenCalledTimes(1);
+    expect(metricsServiceMock.recordPushSuccess).not.toHaveBeenCalled();
+    expect(metricsServiceMock.recordPushStalePruned).not.toHaveBeenCalled();
+  });
+
+  it('should record push failure for transient delivery errors without pruning', async () => {
+    prismaMock.pushSubscription.findMany.mockResolvedValue([
+      {
+        id: 'sub-transient',
+        endpoint: 'https://push.example.com/transient',
+        p256dh: 'key-transient',
+        auth: 'encrypted_transient',
+      },
+    ]);
+
+    const mockedSend = vi.mocked(webpush.sendNotification);
+    mockedSend.mockRejectedValueOnce({ statusCode: 500 });
+
+    await service.sendPushNotifications(['user-1'], {
+      title: 'Hello',
+      body: 'World',
+    });
+
+    expect(prismaMock.pushSubscription.delete).not.toHaveBeenCalled();
+    expect(metricsServiceMock.recordPushAttempt).toHaveBeenCalledTimes(1);
+    expect(metricsServiceMock.recordPushFailure).toHaveBeenCalledTimes(1);
+    expect(metricsServiceMock.recordPushSuccess).not.toHaveBeenCalled();
+    expect(metricsServiceMock.recordPushStalePruned).not.toHaveBeenCalled();
+  });
+
+  it('should not record any push metrics when VAPID is unconfigured', async () => {
+    const unconfiguredConfigMock = {
+      get: vi.fn(() => null),
+    };
+    const unconfiguredService = new NotificationsService(
+      prismaMock as unknown as PrismaService,
+      unconfiguredConfigMock as unknown as ConfigService,
+      cryptoServiceMock as unknown as CryptoService,
+      metricsServiceMock as unknown as OperationalMetricsService,
+    );
+    unconfiguredService.onModuleInit();
+
+    await unconfiguredService.sendPushNotifications(['user-1'], {
+      title: 'Hello',
+      body: 'World',
+    });
+
+    expect(metricsServiceMock.recordPushAttempt).not.toHaveBeenCalled();
+    expect(metricsServiceMock.recordPushSuccess).not.toHaveBeenCalled();
+    expect(metricsServiceMock.recordPushFailure).not.toHaveBeenCalled();
+    expect(metricsServiceMock.recordPushStalePruned).not.toHaveBeenCalled();
+  });
+
+  it('should not record any push metrics when accountIds is empty or zero subscriptions exist', async () => {
+    await service.sendPushNotifications([], {
+      title: 'Hello',
+      body: 'World',
+    });
+    expect(metricsServiceMock.recordPushAttempt).not.toHaveBeenCalled();
+
+    prismaMock.pushSubscription.findMany.mockResolvedValueOnce([]);
+    await service.sendPushNotifications(['user-1'], {
+      title: 'Hello',
+      body: 'World',
+    });
+    expect(metricsServiceMock.recordPushAttempt).not.toHaveBeenCalled();
+    expect(metricsServiceMock.recordPushSuccess).not.toHaveBeenCalled();
+    expect(metricsServiceMock.recordPushFailure).not.toHaveBeenCalled();
+    expect(metricsServiceMock.recordPushStalePruned).not.toHaveBeenCalled();
+  });
+
+  it('should not record any push metrics if querying subscriptions throws an error', async () => {
+    prismaMock.pushSubscription.findMany.mockRejectedValueOnce(new Error('DB connection refused'));
+
+    await service.sendPushNotifications(['user-1'], {
+      title: 'Hello',
+      body: 'World',
+    });
+
+    expect(metricsServiceMock.recordPushAttempt).not.toHaveBeenCalled();
+    expect(metricsServiceMock.recordPushSuccess).not.toHaveBeenCalled();
+    expect(metricsServiceMock.recordPushFailure).not.toHaveBeenCalled();
+    expect(metricsServiceMock.recordPushStalePruned).not.toHaveBeenCalled();
   });
 
   it('should never throw error if push notification delivery fails', async () => {

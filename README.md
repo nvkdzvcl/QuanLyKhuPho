@@ -211,6 +211,12 @@ pnpm dev
 | `POST` | `/api/notifications/push/subscribe` | Authenticated | Đăng ký subscription thông báo đẩy trình duyệt |
 | `POST` | `/api/notifications/push/unsubscribe` | Authenticated | Hủy đăng ký subscription thông báo đẩy |
 
+### Quan sát Vận hành & Chỉ số Tiến trình (Operational Observability)
+
+| Method | Endpoint | Quyền hạn | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/observability/operational-metrics` | Officer | Snapshot chỉ số vận hành tiến trình (HTTP aggregates, Web Push delivery, uptime) |
+
 ### Kiến nghị & Phản ánh (Petitions & Workflows - Sprint 2B)
 
 | Method | Endpoint | Quyền hạn | Mô tả |
@@ -300,6 +306,7 @@ pnpm security:api
 Chi tiết ma trận kiểm thử đa trình duyệt (Chromium, Firefox, WebKit trên 320x568 và 1920x1080), bằng chứng hiệu năng tải trang, kiểm tra chống tràn ngang và danh mục nghiệm thu thiết bị thực tế bắt buộc được quy định tại [Hướng dẫn Nghiệm thu Trình duyệt & Hiệu năng (Browser & Performance Acceptance)](docs/quality/browser-performance-acceptance.md).
 Chi tiết rào chắn đo lường độ trễ API trên stack thật (PostgreSQL `qlkp_e2e`, Redis DB 15, RabbitMQ), tính toán phân vị Nearest-Rank và phân định ranh giới lab/production được quy định tại [Sổ tay Nghiệm thu Hiệu năng API (API Performance Acceptance)](docs/quality/api-performance-acceptance.md).
 Chi tiết rào chắn kiểm thử phân quyền server-side, cô lập dữ liệu 2 khu phố, chống IDOR, thu hồi phiên làm việc tức thì và che mặt nạ dữ liệu xuất được quy định tại [Sổ tay Nghiệm thu Bảo mật & Phân quyền (Security Authorization Acceptance)](docs/quality/security-authorization-acceptance.md).
+Chi tiết mô hình chỉ số vận hành tiến trình cục bộ, chính sách bảo vệ quyền riêng tư No-PII và ranh giới bằng chứng kỹ thuật (không đại diện cho cam kết SLA sản xuất cụm) được quy định tại [Sổ tay Quan sát Vận hành & Chỉ số Tiến trình (Operational Observability Runbook)](docs/operations/observability.md).
 
 ---
 

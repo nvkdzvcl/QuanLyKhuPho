@@ -17,6 +17,7 @@ import { PoliticalSocialProfilesModule } from './political-social-profiles/polit
 import { NeighborhoodActivitiesModule } from './neighborhood-activities/neighborhood-activities.module';
 import { ExportsModule } from './exports/exports.module';
 import { DeploymentsModule } from './deployments/deployments.module';
+import { ObservabilityModule } from './observability/observability.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { DeploymentsModule } from './deployments/deployments.module';
     NeighborhoodActivitiesModule,
     ExportsModule,
     DeploymentsModule,
+    ObservabilityModule,
   ],
 })
 export class AppModule {}

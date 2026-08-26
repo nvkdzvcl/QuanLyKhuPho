@@ -14,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AppException } from '../core/exceptions/app.exception';
 import { RegisterPushSubscriptionDto } from './dto/register-push.dto';
 import { CryptoService } from '../security/crypto.service';
+import { OperationalMetricsService } from '../observability/operational-metrics.service';
 
 @Injectable()
 export class NotificationsService implements OnModuleInit {
@@ -25,6 +26,7 @@ export class NotificationsService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly cryptoService: CryptoService,
+    private readonly metricsService: OperationalMetricsService,
   ) {}
 
   onModuleInit() {
@@ -327,12 +329,14 @@ export class NotificationsService implements OnModuleInit {
       let prunedCount = 0;
 
       for (const sub of subscriptions) {
+        this.metricsService.recordPushAttempt();
         try {
           let decryptedAuth: string;
           try {
             decryptedAuth = this.cryptoService.decrypt(sub.auth);
           } catch {
             this.logger.warn('Failed to decrypt push subscription auth secret');
+            this.metricsService.recordPushFailure();
             continue;
           }
 
@@ -347,7 +351,10 @@ export class NotificationsService implements OnModuleInit {
             pushPayload,
           );
           sentCount++;
+          this.metricsService.recordPushSuccess();
         } catch (error: unknown) {
+          this.metricsService.recordPushFailure();
+
           const statusCode =
             error && typeof error === 'object' && 'statusCode' in error
               ? (error as { statusCode: number }).statusCode
@@ -360,6 +367,7 @@ export class NotificationsService implements OnModuleInit {
                 where: { id: sub.id },
               });
               prunedCount++;
+              this.metricsService.recordPushStalePruned();
             } catch {
               // Ignore deletion error
             }

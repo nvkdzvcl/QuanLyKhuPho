@@ -8,6 +8,7 @@ import {
   ErrorCode,
   Gender,
   type NeighborhoodDto,
+  type OperationalMetricsSnapshotDto,
   PetitionCategory,
   type PetitionDto,
   type PetitionListResponseDto,
@@ -347,6 +348,11 @@ test.describe.serial('Real-Stack Security Authorization & IDOR Acceptance Gate',
 
     const wardOverviewRes = await anonContext.get('/api/dashboard/ward-overview');
     await assertErrorResponse(wardOverviewRes, 401, ErrorCode.UNAUTHORIZED);
+
+    const metricsRes = await anonContext.get(
+      '/api/observability/operational-metrics',
+    );
+    await assertErrorResponse(metricsRes, 401, ErrorCode.UNAUTHORIZED);
   });
 
   test('Matrix 2: Resident cannot access pending-user administration, create leaders, change petition status, or export residents (403 FORBIDDEN)', async () => {
@@ -380,6 +386,11 @@ test.describe.serial('Real-Stack Security Authorization & IDOR Acceptance Gate',
 
     const exportRes = await resident1Context.get('/api/exports/residents');
     await assertErrorResponse(exportRes, 403, ErrorCode.FORBIDDEN);
+
+    const residentMetricsRes = await resident1Context.get(
+      '/api/observability/operational-metrics',
+    );
+    await assertErrorResponse(residentMetricsRes, 403, ErrorCode.FORBIDDEN);
   });
 
   test('Matrix 3: Leader KP-01 cannot see/approve/lock the pending or active resident from KP-02; own pending/list behavior remains correct', async () => {
@@ -421,6 +432,12 @@ test.describe.serial('Real-Stack Security Authorization & IDOR Acceptance Gate',
       },
     );
     await assertErrorResponse(lockCrossRes, 403, ErrorCode.FORBIDDEN);
+
+    // Leader KP-01 cannot access operational metrics snapshot
+    const leaderMetricsRes = await leader1Context.get(
+      '/api/observability/operational-metrics',
+    );
+    await assertErrorResponse(leaderMetricsRes, 403, ErrorCode.FORBIDDEN);
 
     // Leader KP-02 sees the pending resident in KP-02
     const l2PendingRes = await leader2Context.get('/api/users/pending');
@@ -750,7 +767,7 @@ test.describe.serial('Real-Stack Security Authorization & IDOR Acceptance Gate',
     ).toBe(false);
   });
 
-  test('Matrix 9: Officer petition list sees both neighborhoods', async () => {
+  test('Matrix 9: Officer petition list sees both neighborhoods and officer accesses operational metrics snapshot', async () => {
     const offPetRes = await officerContext.get('/api/petitions');
     expect(offPetRes.status()).toBe(200);
     const offPetEnv =
@@ -758,6 +775,36 @@ test.describe.serial('Real-Stack Security Authorization & IDOR Acceptance Gate',
     expect(offPetEnv.success).toBe(true);
     expect(offPetEnv.data.items.some((p) => p.id === petition1.id)).toBe(true);
     expect(offPetEnv.data.items.some((p) => p.id === petition2.id)).toBe(true);
+
+    // Officer accesses operational metrics snapshot (200 OK)
+    const offMetricsRes = await officerContext.get(
+      '/api/observability/operational-metrics',
+    );
+    expect(offMetricsRes.status()).toBe(200);
+    const metricsEnv =
+      (await offMetricsRes.json()) as ApiResponseEnvelope<OperationalMetricsSnapshotDto>;
+    expect(metricsEnv.success).toBe(true);
+    expect(typeof metricsEnv.data.startedAt).toBe('string');
+    expect(new Date(metricsEnv.data.startedAt).getTime()).not.toBeNaN();
+    expect(typeof metricsEnv.data.uptimeSeconds).toBe('number');
+    expect(metricsEnv.data.uptimeSeconds).toBeGreaterThanOrEqual(0);
+
+    // HTTP aggregate fields
+    expect(typeof metricsEnv.data.http.totalRequests).toBe('number');
+    expect(metricsEnv.data.http.totalRequests).toBeGreaterThan(0);
+    expect(typeof metricsEnv.data.http.serverErrorRequests).toBe('number');
+    expect(typeof metricsEnv.data.http.averageLatencyMs).toBe('number');
+    expect(typeof metricsEnv.data.http.maxLatencyMs).toBe('number');
+
+    // Web Push aggregate fields
+    expect(typeof metricsEnv.data.push.attempts).toBe('number');
+    expect(typeof metricsEnv.data.push.successes).toBe('number');
+    expect(typeof metricsEnv.data.push.failures).toBe('number');
+    expect(typeof metricsEnv.data.push.stalePruned).toBe('number');
+    expect(
+      metricsEnv.data.push.successRatePercent === null ||
+        typeof metricsEnv.data.push.successRatePercent === 'number',
+    ).toBe(true);
   });
 
   test('Matrix 10: Leader locks own active resident; that residents existing session immediately receives 401 UNAUTHORIZED on protected access', async () => {

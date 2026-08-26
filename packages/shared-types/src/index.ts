@@ -15,3 +15,4 @@ export * from './neighborhood-activities';
 export * from './exports';
 export * from './dev-sms';
 export * from './deployment-profile';
+export * from './observability';
