@@ -34,6 +34,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   transpilePackages: ['@quanlykhupho/ui', '@quanlykhupho/shared-types'],
   poweredByHeader: false,
   async headers() {

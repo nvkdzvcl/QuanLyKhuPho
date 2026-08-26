@@ -308,3 +308,17 @@ jobs:
             playwright-report-security/
             test-results-security/
           retention-days: 7
+
+  container-build:
+    name: Production Container Images Build
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build API production image
+        run: docker build -f docker/Dockerfile.api -t quanlykhupho-api:ci-test .
+
+      - name: Build Web production image
+        run: docker build -f docker/Dockerfile.web --build-arg NEXT_PUBLIC_API_URL=https://example.invalid/api -t quanlykhupho-web:ci-test .

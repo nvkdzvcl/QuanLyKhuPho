@@ -30,9 +30,13 @@ QuanLyKhuPho/
 │   ├── typescript-config/      # Cấu hình tsconfig dùng chung
 │   └── eslint-config/          # Cấu hình ESLint 9 dùng chung
 ├── docker/
-│   └── docker-compose.yml      # Hạ tầng cục bộ (PostgreSQL 16, Redis 7, RabbitMQ 3.13)
+│   ├── Dockerfile.api          # Multi-stage API, Worker & Migration container image (Node 22)
+│   ├── Dockerfile.web          # Multi-stage Next.js Standalone container image (Node 22)
+│   ├── docker-compose.yml      # Hạ tầng phát triển cục bộ (PostgreSQL 16, Redis 7, RabbitMQ 3.13)
+│   ├── docker-compose.production.yml # Cụm dịch vụ Production Compose (loopback & private network)
+│   └── .env.production.example # Mẫu cấu hình môi trường Production an toàn
 ├── .github/
-│   └── workflows/ci.yml        # CI Pipeline kiểm tra lint, typecheck, test, build
+│   └── workflows/ci.yml        # CI Pipeline kiểm tra lint, typecheck, test, build & container builds
 └── turbo.json                  # Cấu hình pipeline Turborepo
 ```
 
@@ -260,8 +264,18 @@ pnpm db:restore -- --file=backups/<ten_tep_sao_luu>.dump
 
 # Phục hồi cơ sở dữ liệu thực tế (BẮT BUỘC cả 2 cờ xác nhận an toàn để ghi đè)
 node scripts/postgres-restore.mjs --file=backups/<ten_tep_sao_luu>.dump --confirm-destructive --confirm-database=quanlykhupho
+
+# Kiểm tra cú pháp cấu hình Docker Compose Production
+docker compose --env-file docker/.env.production -f docker/docker-compose.production.yml config --quiet
+
+# Đóng gói và khởi chạy cụm dịch vụ Production tự lưu trữ (Self-hosted Production)
+docker compose --env-file docker/.env.production -f docker/docker-compose.production.yml build
+docker compose --env-file docker/.env.production -f docker/docker-compose.production.yml up -d postgres redis rabbitmq
+docker compose --env-file docker/.env.production -f docker/docker-compose.production.yml up migrate
+docker compose --env-file docker/.env.production -f docker/docker-compose.production.yml up -d
 ```
 
+Chi tiết quy trình đóng gói container, cấu hình biến môi trường production, khởi chạy dịch vụ, cập nhật và quay lui sự cố được quy định tại [Sổ tay Vận hành: Triển khai Production & Khắc phục Sự cố (Production Deployment Runbook)](docs/operations/production-deployment.md).
 Chi tiết quy trình triển khai địa bàn, kiểm tra tính tương thích và bảo vệ dữ liệu được quy định tại [Sổ tay Vận hành: Khởi tạo & Triển khai Địa bàn (Locality Deployment Runbook)](docs/operations/locality-deployment.md).
 Chi tiết quy trình sao lưu, lưu trữ off-host, mã hóa, xoay vòng lưu trữ và diễn tập phục hồi được quy định tại [Sổ tay Vận hành: Sao lưu & Phục hồi CSDL (Database Backup & Restore Runbook)](docs/operations/database-backup-restore.md).
 
@@ -287,16 +301,21 @@ pnpm test:ops
 # 5. Build Toàn bộ Packages & Applications
 pnpm build
 
-# 6. Kiểm tra tính hợp lệ của Docker Compose
+# 6. Kiểm tra tính hợp lệ của Docker Compose Development & Production
 docker compose -f docker/docker-compose.yml config --quiet
+docker compose --env-file docker/.env.production -f docker/docker-compose.production.yml config --quiet
 
-# 7. Kiểm thử Đa trình duyệt, Responsive & Ngân sách Hiệu năng (Playwright E2E - 6 Projects)
+# 7. Kiểm tra đóng gói Docker Images Production
+docker build -f docker/Dockerfile.api -t quanlykhupho-api:verify .
+docker build -f docker/Dockerfile.web --build-arg NEXT_PUBLIC_API_URL=https://example.invalid/api -t quanlykhupho-web:verify .
+
+# 8. Kiểm thử Đa trình duyệt, Responsive & Ngân sách Hiệu năng (Playwright E2E - 6 Projects)
 pnpm e2e
 
-# 8. Kiểm thử Nghiệm thu Hiệu năng & Độ trễ API (SRS NFR-03 - Real-stack p95 < 500ms)
+# 9. Kiểm thử Nghiệm thu Hiệu năng & Độ trễ API (SRS NFR-03 - Real-stack p95 < 500ms)
 pnpm perf:api
 
-# 9. Kiểm thử Nghiệm thu Bảo mật, Phân quyền & Chống IDOR (Real-stack Authorization & IDOR Gate)
+# 10. Kiểm thử Nghiệm thu Bảo mật, Phân quyền & Chống IDOR (Real-stack Authorization & IDOR Gate)
 pnpm security:api
 ```
 
