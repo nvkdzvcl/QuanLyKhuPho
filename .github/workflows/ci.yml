@@ -310,15 +310,28 @@ jobs:
           retention-days: 7
 
   container-build:
-    name: Production Container Images Build
+    name: Production Container Images Build & Release Acceptance
     needs: validate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Build API production image
         run: docker build -f docker/Dockerfile.api -t quanlykhupho-api:ci-test .
 
       - name: Build Web production image
         run: docker build -f docker/Dockerfile.web --build-arg NEXT_PUBLIC_API_URL=https://example.invalid/api -t quanlykhupho-web:ci-test .
+
+      - name: Run Production Release Acceptance Smoke Gate
+        run: pnpm production:acceptance -- --no-build --tag=ci-test

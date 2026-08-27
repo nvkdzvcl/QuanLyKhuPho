@@ -1,0 +1,45 @@
+name: quanlykhupho-production-smoke
+
+services:
+  postgres:
+    container_name: quanlykhupho-postgres-smoke
+
+  redis:
+    container_name: quanlykhupho-redis-smoke
+
+  rabbitmq:
+    container_name: quanlykhupho-rabbitmq-smoke
+
+  migrate:
+    container_name: quanlykhupho-migrate-smoke
+
+  api:
+    container_name: quanlykhupho-api-smoke
+    ports:
+      - "127.0.0.1:${API_PORT:-4010}:4000"
+
+  sms-worker:
+    container_name: quanlykhupho-worker-smoke
+
+  web:
+    container_name: quanlykhupho-web-smoke
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3010}:3000"
+
+volumes:
+  postgres_data:
+    name: quanlykhupho_postgres_smoke_data
+  redis_data:
+    name: quanlykhupho_redis_smoke_data
+  rabbitmq_data:
+    name: quanlykhupho_rabbitmq_smoke_data
+  uploads_data:
+    name: quanlykhupho_uploads_smoke_data
+
+networks:
+  application:
+    name: quanlykhupho_application_smoke
+  data:
+    name: quanlykhupho_data_smoke
+    internal: true
+

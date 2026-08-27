@@ -238,6 +238,8 @@ docker compose --env-file docker/.env.production -f docker/docker-compose.produc
   logs --tail=50 sms-worker
 ```
 
+Bên cạnh kiểm thử khói thủ công trên môi trường đang chạy, quy trình CI và tiền phát hành sử dụng công cụ tự động hóa cô lập `pnpm production:acceptance` để kiểm chứng toàn bộ stack container trước khi triển khai chính thức. Chi tiết được quy định tại [Sổ tay Nghiệm thu Phát hành Sản xuất (Production Release Acceptance)](../quality/production-release-acceptance.md).
+
 ---
 
 ## 6. Quy trình Cập nhật & Quay lui (Update & Rollback Procedure)
