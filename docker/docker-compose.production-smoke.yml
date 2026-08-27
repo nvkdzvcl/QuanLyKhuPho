@@ -42,4 +42,3 @@ networks:
   data:
     name: quanlykhupho_data_smoke
     internal: true
-
