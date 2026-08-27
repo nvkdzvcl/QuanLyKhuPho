@@ -12,7 +12,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "test:ops": "node --test scripts/test/postgres-operations.test.mjs scripts/test/production-release-acceptance.test.mjs",
+    "test:ops": "node --test scripts/test/postgres-operations.test.mjs scripts/test/production-release-acceptance.test.mjs scripts/test/locality-deployment-rehearsal.test.mjs",
     "e2e": "turbo run build --filter=@quanlykhupho/web... && playwright test",
     "e2e:fullstack": "turbo run build --filter=@quanlykhupho/api... --filter=@quanlykhupho/web... && node apps/api/test/fullstack/prepare.mjs && playwright test --config=playwright.fullstack.config.ts",
     "perf:api": "turbo run build --filter=@quanlykhupho/api... && node apps/api/test/fullstack/prepare.mjs && playwright test --config=playwright.performance.config.ts",
@@ -22,6 +22,7 @@
     "prisma:generate": "pnpm --filter @quanlykhupho/api prisma:generate",
     "deployment:init": "pnpm --filter @quanlykhupho/api deployment:init",
     "production:acceptance": "node scripts/production-release-acceptance.mjs",
+    "locality:rehearsal": "node scripts/locality-deployment-rehearsal.mjs",
     "clean": "turbo run clean"
   },
   "devDependencies": {

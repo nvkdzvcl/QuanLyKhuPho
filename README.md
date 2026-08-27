@@ -35,6 +35,7 @@ QuanLyKhuPho/
 │   ├── docker-compose.yml      # Hạ tầng phát triển cục bộ (PostgreSQL 16, Redis 7, RabbitMQ 3.13)
 │   ├── docker-compose.production.yml # Cụm dịch vụ Production Compose (loopback & private network)
 │   ├── docker-compose.production-smoke.yml # Cấu hình Compose cô lập cho kiểm thử khói nghiệm thu phát hành
+│   ├── docker-compose.locality-rehearsal.yml # Cấu hình Compose cô lập cho diễn tập triển khai địa bàn
 │   └── .env.production.example # Mẫu cấu hình môi trường Production an toàn
 ├── scripts/                    # Kịch bản sao lưu/phục hồi CSDL & Runner nghiệm thu phát hành sản xuất
 ├── .github/
@@ -281,10 +282,17 @@ pnpm production:acceptance
 
 # Chạy nghiệm thu phát hành tái sử dụng image đã build sẵn (như trong CI)
 pnpm production:acceptance -- --no-build --tag=verify
+
+# Chạy diễn tập triển khai địa bàn cô lập (Locality Deployment Rehearsal)
+pnpm locality:rehearsal
+
+# Chạy diễn tập triển khai địa bàn tái sử dụng image đã build sẵn
+pnpm locality:rehearsal -- --no-build --tag=verify
 ```
 
 Chi tiết quy trình đóng gói container, cấu hình biến môi trường production, khởi chạy dịch vụ, cập nhật và quay lui sự cố được quy định tại [Sổ tay Vận hành: Triển khai Production & Khắc phục Sự cố (Production Deployment Runbook)](docs/operations/production-deployment.md).
 Chi tiết quy trình triển khai địa bàn, kiểm tra tính tương thích và bảo vệ dữ liệu được quy định tại [Sổ tay Vận hành: Khởi tạo & Triển khai Địa bàn (Locality Deployment Runbook)](docs/operations/locality-deployment.md).
+Chi tiết quy trình diễn tập triển khai địa bàn cô lập, kiểm chứng di trú, khởi tạo và giao ước runtime được quy định tại [Sổ tay Diễn tập Triển khai Địa bàn (Locality Deployment Rehearsal)](docs/quality/locality-deployment-rehearsal.md).
 Chi tiết quy trình sao lưu, lưu trữ off-host, mã hóa, xoay vòng lưu trữ và diễn tập phục hồi được quy định tại [Sổ tay Vận hành: Sao lưu & Phục hồi CSDL (Database Backup & Restore Runbook)](docs/operations/database-backup-restore.md).
 Chi tiết quy trình nghiệm thu phát hành sản xuất, ma trận kiểm chứng runtime và rào chắn khói cô lập tự động được quy định tại [Sổ tay Nghiệm thu Phát hành Sản xuất (Production Release Acceptance)](docs/quality/production-release-acceptance.md).
 
@@ -329,6 +337,9 @@ pnpm security:api
 
 # 11. Chạy Cổng Nghiệm thu Phát hành Sản xuất Cô lập (Production Release Acceptance Smoke Gate)
 pnpm production:acceptance -- --no-build --tag=verify
+
+# 12. Chạy Diễn tập Triển khai Địa bàn Cô lập (Locality Deployment Rehearsal Gate)
+pnpm locality:rehearsal -- --no-build --tag=verify
 ```
 
 > **Lưu ý về Prisma Client & Cơ chế Khóa DLL trên Windows**:
@@ -338,6 +349,7 @@ Chi tiết ma trận kiểm thử đa trình duyệt (Chromium, Firefox, WebKit 
 Chi tiết rào chắn đo lường độ trễ API trên stack thật (PostgreSQL `qlkp_e2e`, Redis DB 15, RabbitMQ), tính toán phân vị Nearest-Rank và phân định ranh giới lab/production được quy định tại [Sổ tay Nghiệm thu Hiệu năng API (API Performance Acceptance)](docs/quality/api-performance-acceptance.md).
 Chi tiết rào chắn kiểm thử phân quyền server-side, cô lập dữ liệu 2 khu phố, chống IDOR, thu hồi phiên làm việc tức thì và che mặt nạ dữ liệu xuất được quy định tại [Sổ tay Nghiệm thu Bảo mật & Phân quyền (Security Authorization Acceptance)](docs/quality/security-authorization-acceptance.md).
 Chi tiết rào chắn kiểm thử khói nghiệm thu phát hành sản xuất trên Compose cô lập, kiểm tra di chuyển schema, worker, healthcheck và ranh giới bằng chứng kỹ thuật được quy định tại [Sổ tay Nghiệm thu Phát hành Sản xuất (Production Release Acceptance)](docs/quality/production-release-acceptance.md).
+Chi tiết rào chắn diễn tập triển khai địa bàn cô lập trên Compose riêng biệt, bản sao tạm thời và xác thực 6 giao ước runtime được quy định tại [Sổ tay Diễn tập Triển khai Địa bàn (Locality Deployment Rehearsal)](docs/quality/locality-deployment-rehearsal.md).
 Chi tiết mô hình chỉ số vận hành tiến trình cục bộ, chính sách bảo vệ quyền riêng tư No-PII và ranh giới bằng chứng kỹ thuật (không đại diện cho cam kết SLA sản xuất cụm) được quy định tại [Sổ tay Quan sát Vận hành & Chỉ số Tiến trình (Operational Observability Runbook)](docs/operations/observability.md).
 
 ---

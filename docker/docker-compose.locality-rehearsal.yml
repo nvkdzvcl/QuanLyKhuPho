@@ -1,0 +1,96 @@
+name: quanlykhupho-locality-rehearsal
+
+services:
+  postgres:
+    container_name: quanlykhupho-postgres-rehearsal
+
+  redis:
+    container_name: quanlykhupho-redis-rehearsal
+
+  rabbitmq:
+    container_name: quanlykhupho-rabbitmq-rehearsal
+
+  migrate:
+    container_name: quanlykhupho-migrate-rehearsal
+
+  locality-init:
+    image: quanlykhupho-api:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: quanlykhupho-locality-init-rehearsal
+    restart: "no"
+    command: ["node", "apps/api/dist/main.js", "--deployment-init", "--apply", "--profile=${DEPLOYMENT_PROFILE:-cho-quan}"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
+      RABBITMQ_URL: ${RABBITMQ_URL:?RABBITMQ_URL is required}
+      NODE_ENV: production
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      DEPLOYMENT_PROFILE: ${DEPLOYMENT_PROFILE:-cho-quan}
+      DEPLOYMENTS_DIR: ${DEPLOYMENTS_DIR:-/app/deployments}
+      PHONE_ENCRYPTION_KEY: ${PHONE_ENCRYPTION_KEY:?PHONE_ENCRYPTION_KEY is required}
+      PHONE_HASH_KEY: ${PHONE_HASH_KEY:?PHONE_HASH_KEY is required}
+      OTP_PEPPER: ${OTP_PEPPER:?OTP_PEPPER is required}
+      SMS_QUEUE_ENCRYPTION_KEY: ${SMS_QUEUE_ENCRYPTION_KEY:?SMS_QUEUE_ENCRYPTION_KEY is required}
+      SMS_PROVIDER: ${SMS_PROVIDER:-webhook}
+      SMS_PROVIDER_WEBHOOK_URL: ${SMS_PROVIDER_WEBHOOK_URL:-https://127.0.0.1:4000/mock-sms}
+      SMS_PROVIDER_API_KEY: ${SMS_PROVIDER_API_KEY:-mock_key}
+      SMS_PROVIDER_TIMEOUT_MS: ${SMS_PROVIDER_TIMEOUT_MS:-5000}
+      HEALTH_PROBE_TIMEOUT_MS: ${HEALTH_PROBE_TIMEOUT_MS:-1000}
+      UPLOAD_DIR: ${UPLOAD_DIR:-/app/uploads}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+    volumes:
+      - "${LOCALITY_DEPLOYMENTS_DIR:-../deployments}:/app/deployments:ro"
+    networks:
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    container_name: quanlykhupho-api-rehearsal
+    ports:
+      - "127.0.0.1:${API_PORT:-4011}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      locality-init:
+        condition: service_completed_successfully
+
+  sms-worker:
+    container_name: quanlykhupho-worker-rehearsal
+
+  web:
+    container_name: quanlykhupho-web-rehearsal
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3011}:3000"
+
+volumes:
+  postgres_data:
+    name: quanlykhupho_postgres_rehearsal_data
+  redis_data:
+    name: quanlykhupho_redis_rehearsal_data
+  rabbitmq_data:
+    name: quanlykhupho_rabbitmq_rehearsal_data
+  uploads_data:
+    name: quanlykhupho_uploads_rehearsal_data
+
+networks:
+  application:
+    name: quanlykhupho_application_rehearsal
+  data:
+    name: quanlykhupho_data_rehearsal
+    internal: true

@@ -18,7 +18,8 @@ Tài liệu này hướng dẫn quy trình vận hành, khởi tạo và quản 
 3. **Chống Ghi đè, Khóa Địa bàn & Rào cản Dữ liệu Dự thảo (Fail-Closed Draft Gate)**:
    - Một cơ sở dữ liệu đã khởi tạo hồ sơ địa bàn (`DeploymentProfile`) sẽ **từ chối** áp dụng bất kỳ gói địa bàn nào khác có mã hoặc tên khác biệt.
    - Cơ sở dữ liệu đã có khu phố nhưng chưa có hồ sơ địa bàn sẽ bị từ chối khởi tạo tự động để tránh làm hỏng dữ liệu cũ.
-   - Gói cấu hình có `confirmed: false` tuyệt đối bị chặn áp dụng vào CSDL. Việc gói dự thảo đã được điền dữ liệu (ví dụ: 25 khu phố tạm thời) **không cấu thành bằng chứng triển khai** và hệ thống duy trì cơ chế fail-closed cho đến khi hoàn tất phê duyệt chính thức.
+   - Gói cấu hình có `confirmed: false` tuyệt đối bị chặn áp dụng vào CSDL sản xuất. Việc gói dự thảo đã được điền dữ liệu (ví dụ: 25 khu phố tạm thời) **không cấu thành bằng chứng triển khai** và hệ thống duy trì cơ chế fail-closed cho đến khi hoàn tất phê duyệt chính thức.
+   - Đội ngũ kỹ thuật có thể sử dụng công cụ diễn tập triển khai cô lập (`pnpm locality:rehearsal`, xem [Sổ tay Diễn tập Triển khai Địa bàn](../quality/locality-deployment-rehearsal.md)) để kiểm chứng trọn vẹn luồng di chuyển schema, khởi tạo và giao ước runtime trên CSDL kiểm thử tạm thời mà không làm thay đổi trạng thái dự thảo của gói trong kho mã nguồn.
 
 4. **Bảo mật, Quyền riêng tư & Quy ước Mã Kỹ thuật Nội bộ**:
    - Gói triển khai (`deployment.json`) chỉ chứa siêu dữ liệu hành chính và danh sách khu phố công khai.
@@ -33,7 +34,7 @@ Tài liệu này hướng dẫn quy trình vận hành, khởi tạo và quản 
 Người vận hành bắt buộc tuân thủ tuần tự 9 bước an toàn sau:
 
 ```text
-[1. Chuẩn bị DB mới] ──> [2. Chạy Migration] ──> [3. Dry-run kiểm tra]
+[1. Chuẩn bị DB mới] ──> [2. Chạy Migration] ──> [3. Dry-run & Diễn tập]
            │
            ▼
 [4. Xác minh Dữ liệu] ──> [5. Cấu hình Confirmed] ──> [6. Áp dụng --apply]
@@ -54,24 +55,34 @@ Tạo một database PostgreSQL rỗng dành riêng cho địa bàn mới (ví d
 pnpm --filter @quanlykhupho/api prisma:migrate
 ```
 
-### Bước 3: Kiểm tra Gói Cấu hình ở Chế độ Dry-Run
+### Bước 3: Kiểm tra Gói Cấu hình ở Chế độ Dry-Run & Diễn tập Kỹ thuật Cô lập
 
-Chạy lệnh kiểm tra tính hợp lệ của gói triển khai (không ghi vào database):
+1. **Kiểm tra Cấu trúc Dry-Run**:
+   Chạy lệnh kiểm tra tính hợp lệ của gói triển khai (không ghi vào database):
+   ```bash
+   pnpm deployment:init -- --profile <slug>
+   # Ví dụ: pnpm deployment:init -- --profile cho-quan
+   ```
+   Nếu gói cấu hình ở trạng thái bản nháp (`confirmed: false`), CLI sẽ thông báo kiểm tra cấu trúc thành công (ví dụ: nhận diện đủ 25 khu phố dự thảo) nhưng cảnh báo fail-closed chặn không cho áp dụng vào CSDL. Người vận hành tham khảo sổ tay nguồn gốc kiểm chứng đính kèm gói cấu hình (ví dụ: [`deployments/cho-quan/README.md`](../../deployments/cho-quan/README.md)) để đối soát nguồn và trạng thái thẩm tra.
 
-```bash
-pnpm deployment:init -- --profile <slug>
-# Ví dụ: pnpm deployment:init -- --profile cho-quan
-```
+2. **Diễn tập Triển khai Địa bàn Cô lập (Locality Deployment Rehearsal)**:
+   Để kiểm chứng toàn bộ quy trình di chuyển schema, khởi tạo tự động (`locality-init`) và 6 giao ước HTTP/HTTPS runtime trước khi xác nhận pháp lý, thực thi lệnh diễn tập cô lập:
+   ```bash
+   # Chế độ mặc định (tự động build images)
+   pnpm locality:rehearsal
 
-Nếu gói cấu hình ở trạng thái bản nháp (`confirmed: false`), CLI sẽ thông báo kiểm tra cấu trúc thành công (ví dụ: nhận diện đủ 25 khu phố dự thảo) nhưng cảnh báo fail-closed chặn không cho áp dụng vào CSDL. Người vận hành tham khảo sổ tay nguồn gốc kiểm chứng đính kèm gói cấu hình (ví dụ: [`deployments/cho-quan/README.md`](../../deployments/cho-quan/README.md)) để đối soát nguồn và trạng thái thẩm tra.
+   # Chế độ tái sử dụng images đã build sẵn
+   pnpm locality:rehearsal -- --no-build --tag=verify
+   ```
+   Diễn tập sử dụng bản sao tạm thời (temporary clone) trong thư mục tạm hệ thống và môi trường CSDL riêng biệt, không thay đổi tệp `deployment.json` gốc và tự động dọn dẹp tài nguyên sau khi hoàn tất. Chi tiết quy trình và ranh giới bằng chứng xem tại [Sổ tay Diễn tập Triển khai Địa bàn](../quality/locality-deployment-rehearsal.md).
 
 ### Bước 4: Xác minh Thông tin Hành chính & Đánh giá Nguồn gốc / Độ tươi mới (Provenance & Freshness Review)
 
 Trước khi kích hoạt bất kỳ địa bàn nào, người vận hành bắt buộc đối soát hồ sơ nguồn gốc dữ liệu (Provenance Ledger) tại `deployments/<slug>/README.md` (ví dụ: [`deployments/cho-quan/README.md`](../../deployments/cho-quan/README.md)) và kiểm tra các thông tin chính thức từ cơ quan nhà nước có thẩm quyền:
 - **Mã địa bàn & Tỉnh/Thành phố**: Mã chuẩn theo danh mục hành chính nhà nước (ví dụ: Phường Chợ Quán là `27301`, TP.HCM là `79`). Bỏ phân cấp quận cũ theo mô hình chính quyền đô thị.
 - **Kênh liên hệ công khai**: Xác minh hotline công vụ và cổng thông tin điện tử; không cấu hình địa chỉ email công vụ nếu chưa được kiểm chứng độc lập.
-- **Rà soát rủi ro sắp xếp hành chính & Độ tươi mới (Reorganization & Freshness Review)**:
-  - Đối với các địa bàn đang thực hiện đề án sắp xếp lại khu phố (như Phường Chợ Quán với kế hoạch tổ chức lại khu phố vào tháng 06/2026), danh mục 25 khu phố hiện tại chỉ là dữ liệu tạm thời/trước sắp xếp.
+- **Rà soát rủi ro sắp xếp hành chính & Độ tươi mới (Reorganization & Freshness Review - Cập nhật 2026-08-27)**:
+  - Đối với các địa bàn đang thực hiện đề án sắp xếp lại khu phố (như Phường Chợ Quán theo Kế hoạch 174/KH-UBND ngày 05/06/2026 đã công khai kết quả lấy ý kiến nhân dân), danh mục 25 khu phố hiện tại chỉ là dữ liệu tạm thời/trước sắp xếp.
   - **Dữ liệu dự thảo không phải bằng chứng triển khai**: Sự tồn tại của danh sách khu phố trong tệp dự thảo (`confirmed: false`) **không phải là bằng chứng sẵn sàng triển khai (not deployable evidence)**.
   - **Rào cản phê duyệt bắt buộc**: Bắt buộc phải thu thập và đối soát văn bản pháp lý chính thức cuối cùng (Nghị quyết của HĐND / Quyết định của UBND cấp có thẩm quyền) phê duyệt đề án sắp xếp và ban hành danh sách khu phố chính thức sau sắp xếp trước khi đặt `confirmed: true`.
 - **Mã khu phố nội bộ**: Gán mã kỹ thuật nội bộ tất định (`KP-01`, `KP-02`, ...) tương ứng với từng khu phố đã được chuẩn hóa. Tuyệt đối không nhầm lẫn mã kỹ thuật này với mã định danh hành chính của Nhà nước.
