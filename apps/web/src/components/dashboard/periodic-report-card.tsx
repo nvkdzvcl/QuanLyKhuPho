@@ -19,6 +19,7 @@ import {
 import { usePeriodicReport } from '../../hooks/use-dashboard';
 import { getErrorMessage } from '../../lib/api-client';
 import { downloadPeriodicReportCsv } from '../../lib/periodic-report-csv';
+import { AppIcon } from '../app-icon';
 
 function formatUtcDateTime(isoString: string): string {
   try {
@@ -191,9 +192,10 @@ export function PeriodicReportCard() {
               size="sm"
               onClick={handleDownloadCsv}
               disabled={isLoading}
-              className="font-semibold shadow-sm text-xs sm:text-sm self-start sm:self-auto"
+              className="font-semibold shadow-sm text-xs sm:text-sm self-start sm:self-auto flex items-center gap-1.5"
             >
-              📥 Xuất file CSV (UTF-8)
+              <AppIcon name="download" className="h-4 w-4 shrink-0" />
+              <span>Xuất file CSV (UTF-8)</span>
             </Button>
           )}
         </div>

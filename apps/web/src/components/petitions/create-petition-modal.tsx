@@ -16,6 +16,7 @@ import {
 } from '@quanlykhupho/shared-types';
 import { useCreatePetition } from '../../hooks/use-petitions';
 import { getErrorMessage } from '../../lib/api-client';
+import { AppIcon } from '../app-icon';
 
 interface CreatePetitionModalProps {
   isOpen: boolean;
@@ -25,10 +26,10 @@ interface CreatePetitionModalProps {
 }
 
 const CATEGORY_OPTIONS = [
-  { value: PetitionCategory.INFRASTRUCTURE, label: '🏗️ Cơ sở hạ tầng (Đường sá, điện, nước, công trình)' },
-  { value: PetitionCategory.SANITATION, label: '🧹 Vệ sinh môi trường (Rác thải, cống rãnh, ô nhiễm)' },
-  { value: PetitionCategory.SECURITY, label: '🛡️ An ninh trật tự (Tiếng ồn, lấn chiếm, an toàn)' },
-  { value: PetitionCategory.OTHER, label: '📌 Khác (Ý kiến & đóng góp chung)' },
+  { value: PetitionCategory.INFRASTRUCTURE, label: 'Cơ sở hạ tầng (Đường sá, điện, nước, công trình)' },
+  { value: PetitionCategory.SANITATION, label: 'Vệ sinh môi trường (Rác thải, cống rãnh, ô nhiễm)' },
+  { value: PetitionCategory.SECURITY, label: 'An ninh trật tự (Tiếng ồn, lấn chiếm, an toàn)' },
+  { value: PetitionCategory.OTHER, label: 'Khác (Ý kiến & đóng góp chung)' },
 ];
 
 const MAX_FILES = 5;
@@ -246,7 +247,8 @@ export function CreatePetitionModal({
                 selectedFiles.length >= MAX_FILES ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
-              📷 Chọn hình ảnh chụp thực tế
+              <AppIcon name="camera" className="h-4 w-4 shrink-0 text-slate-600" />
+              <span>Chọn hình ảnh chụp thực tế</span>
             </label>
             <p className="mt-1 text-[11px] text-slate-500">
               Định dạng hỗ trợ: JPEG, PNG, WebP (Tối đa 5 ảnh).
@@ -282,8 +284,9 @@ export function CreatePetitionModal({
                     onClick={() => handleRemoveFile(index)}
                     className="absolute top-2 right-2 rounded-full bg-red-600 text-white p-1 text-xs shadow hover:bg-red-700 transition"
                     title="Xóa hình ảnh này"
+                    aria-label={`Xóa hình ảnh ${preview.name}`}
                   >
-                    ✕
+                    <AppIcon name="x" className="h-3 w-3" />
                   </button>
                 </div>
               ))}

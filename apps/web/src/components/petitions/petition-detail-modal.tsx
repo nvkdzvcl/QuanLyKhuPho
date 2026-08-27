@@ -24,6 +24,7 @@ import {
   PetitionCategoryBadge,
   PetitionStatusBadge,
 } from './petition-status-badge';
+import { AppIcon } from '../app-icon';
 
 interface PetitionDetailModalProps {
   petitionId: string | null;
@@ -271,8 +272,9 @@ export function PetitionDetailModal({
                           <span className="truncate max-w-[100px] font-medium">
                             {ev.originalName}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            {(ev.fileSize / 1024).toFixed(0)} KB 🔍
+                          <span className="flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+                            {(ev.fileSize / 1024).toFixed(0)} KB
+                            <AppIcon name="search" className="h-3 w-3 inline" />
                           </span>
                         </div>
                       </a>
@@ -304,8 +306,10 @@ export function PetitionDetailModal({
                       setCancelReason('');
                       setCancelError(null);
                     }}
+                    className="flex items-center gap-1.5"
                   >
-                    ⊘ Hủy kiến nghị này
+                    <AppIcon name="ban" className="h-3.5 w-3.5" />
+                    <span>Hủy kiến nghị này</span>
                   </Button>
                   <span className="text-xs text-slate-500">
                     (Bạn có thể hủy kiến nghị khi đang trong giai đoạn chờ tiếp nhận)
@@ -322,8 +326,10 @@ export function PetitionDetailModal({
                       size="sm"
                       onClick={handleStartProcessing}
                       isLoading={updateStatusMutation.isPending}
+                      className="flex items-center gap-1.5"
                     >
-                      ⚙️ Tiếp nhận xử lý
+                      <AppIcon name="settings" className="h-3.5 w-3.5" />
+                      <span>Tiếp nhận xử lý</span>
                     </Button>
                   )}
 
@@ -337,8 +343,10 @@ export function PetitionDetailModal({
                           setResolveNote('');
                           setResolveError(null);
                         }}
+                        className="flex items-center gap-1.5"
                       >
-                        ✓ Giải quyết thành công
+                        <AppIcon name="check" className="h-3.5 w-3.5" />
+                        <span>Giải quyết thành công</span>
                       </Button>
                       <Button
                         variant="destructive"
@@ -348,8 +356,10 @@ export function PetitionDetailModal({
                           setRejectReason('');
                           setRejectError(null);
                         }}
+                        className="flex items-center gap-1.5"
                       >
-                        ✕ Từ chối kiến nghị
+                        <AppIcon name="x" className="h-3.5 w-3.5" />
+                        <span>Từ chối kiến nghị</span>
                       </Button>
                     </>
                   )}
@@ -419,8 +429,11 @@ export function PetitionDetailModal({
                         </div>
 
                         {step.note && (
-                          <div className="rounded-lg bg-slate-50 p-2.5 text-xs text-slate-700 border border-slate-100 leading-relaxed whitespace-pre-wrap">
-                            💬 <strong>Ý kiến / Ghi chú:</strong> {step.note}
+                          <div className="rounded-lg bg-slate-50 p-2.5 text-xs text-slate-700 border border-slate-100 leading-relaxed whitespace-pre-wrap flex items-start gap-1.5">
+                            <AppIcon name="message-square" className="h-3.5 w-3.5 text-slate-500 shrink-0 mt-0.5" />
+                            <div>
+                              <strong>Ý kiến / Ghi chú:</strong> {step.note}
+                            </div>
                           </div>
                         )}
                       </div>

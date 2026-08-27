@@ -31,6 +31,7 @@ import {
 } from '../../hooks/use-political-social-profiles';
 import { getErrorMessage } from '../../lib/api-client';
 import { ExportModal } from '../exports/export-modal';
+import { AppIcon } from '../app-icon';
 
 interface PoliticalSocialManagementProps {
   user: UserDto;
@@ -289,7 +290,8 @@ export function PoliticalSocialManagement({ user }: PoliticalSocialManagementPro
                 onClick={() => setIsExportModalOpen(true)}
                 className="text-xs sm:text-sm"
               >
-                📥 Xuất dữ liệu
+                <AppIcon name="download" className="h-4 w-4 mr-1.5 inline" />
+                Xuất dữ liệu
               </Button>
               <Button
                 variant="outline"
@@ -410,8 +412,8 @@ export function PoliticalSocialManagement({ user }: PoliticalSocialManagementPro
             />
           ) : items.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 p-12 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 text-xl font-bold">
-                🚩
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                <AppIcon name="flag" className="h-6 w-6" />
               </div>
               <h4 className="mt-3 text-base font-bold text-slate-900">
                 Không tìm thấy hồ sơ cư dân nào

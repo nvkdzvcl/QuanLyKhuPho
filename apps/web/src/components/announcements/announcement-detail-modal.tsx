@@ -19,6 +19,7 @@ import {
   useModerateComment,
 } from '../../hooks/use-announcements';
 import { getErrorMessage } from '../../lib/api-client';
+import { AppIcon } from '../app-icon';
 
 interface AnnouncementDetailModalProps {
   announcementId: string | null;
@@ -118,9 +119,15 @@ export function AnnouncementDetailModal({
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <Badge variant={announcement.scope === AnnouncementScope.WARD ? 'info' : 'warning'}>
-                  {announcement.scope === AnnouncementScope.WARD
-                    ? '🌐 Toàn phường'
-                    : `🏡 ${announcement.neighborhood?.name || 'Khu phố'}`}
+                  <span className="flex items-center gap-1">
+                    <AppIcon
+                      name={announcement.scope === AnnouncementScope.WARD ? 'globe' : 'home'}
+                      className="h-3 w-3 inline"
+                    />
+                    {announcement.scope === AnnouncementScope.WARD
+                      ? 'Toàn phường'
+                      : (announcement.neighborhood?.name || 'Khu phố')}
+                  </span>
                 </Badge>
                 <span className="text-xs text-slate-500">
                   Người đăng: <strong>{announcement.author.fullName}</strong> (
@@ -158,11 +165,12 @@ export function AnnouncementDetailModal({
                       className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-800 hover:border-blue-500 hover:bg-blue-50/50 transition shadow-sm"
                     >
                       <div className="flex items-center gap-2 truncate">
-                        <span className="text-base">📎</span>
+                        <AppIcon name="paperclip" className="h-4 w-4 text-slate-500 shrink-0" />
                         <span className="font-semibold truncate">{att.originalName}</span>
                       </div>
-                      <span className="text-[11px] text-slate-400 shrink-0 ml-2 font-mono">
-                        {(att.fileSize / 1024).toFixed(1)} KB ⬇️
+                      <span className="flex items-center gap-1 text-[11px] text-slate-400 shrink-0 ml-2 font-mono">
+                        {(att.fileSize / 1024).toFixed(1)} KB
+                        <AppIcon name="download" className="h-3.5 w-3.5 text-slate-500 inline" />
                       </span>
                     </a>
                   ))}

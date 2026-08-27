@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Alert, Badge, Button, Modal } from '@quanlykhupho/ui';
 import { ExportDataset, ExportFormat, ExportQueryDto } from '@quanlykhupho/shared-types';
 import { useExport } from '../../hooks/use-exports';
+import { AppIcon } from '../app-icon';
 
 export interface FilterSummaryItem {
   label: string;
@@ -194,7 +195,7 @@ export function ExportModal({
         {/* Security & Privacy Notice */}
         <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 text-[11px] text-amber-900 space-y-1">
           <div className="font-bold flex items-center gap-1.5 text-amber-800">
-            <span>🛡️</span>
+            <AppIcon name="shield" className="h-4 w-4 shrink-0 text-amber-800" />
             <span>Bảo mật & Quyền riêng tư thông tin:</span>
           </div>
           <p>

@@ -16,6 +16,7 @@ import {
 } from '@quanlykhupho/shared-types';
 import { useCreateAnnouncement } from '../../hooks/use-announcements';
 import { getErrorMessage } from '../../lib/api-client';
+import { AppIcon } from '../app-icon';
 
 interface CreateAnnouncementModalProps {
   isOpen: boolean;
@@ -214,9 +215,10 @@ export function CreateAnnouncementModal({
             />
             <label
               htmlFor="announcement-file-input"
-              className="cursor-pointer text-xs font-semibold text-blue-600 hover:text-blue-800"
+              className="cursor-pointer text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center justify-center gap-1.5"
             >
-              📎 Bấm vào đây để chọn tệp từ máy tính
+              <AppIcon name="paperclip" className="h-4 w-4 shrink-0" />
+              <span>Bấm vào đây để chọn tệp từ máy tính</span>
             </label>
             <p className="text-[11px] text-slate-400 mt-1">
               Hỗ trợ PDF, PNG, JPG, GIF, DOCX, XLSX, ZIP, TXT (Tối đa 10 MiB)
@@ -231,16 +233,17 @@ export function CreateAnnouncementModal({
                   key={idx}
                   className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-1.5 text-xs text-slate-700"
                 >
-                  <span className="truncate max-w-[240px] sm:max-w-xs">
-                    📄 {file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+                  <span className="flex items-center gap-1.5 truncate max-w-[240px] sm:max-w-xs">
+                    <AppIcon name="file-text" className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                    <span className="truncate">{file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)</span>
                   </span>
                   <button
                     type="button"
                     onClick={() => handleRemoveFile(idx)}
-                    className="text-red-500 hover:text-red-700 font-bold ml-2"
+                    className="text-red-500 hover:text-red-700 ml-2 p-0.5 rounded"
                     aria-label={`Xóa tệp ${file.name}`}
                   >
-                    ✕
+                    <AppIcon name="x" className="h-3.5 w-3.5" />
                   </button>
                 </div>
               ))}

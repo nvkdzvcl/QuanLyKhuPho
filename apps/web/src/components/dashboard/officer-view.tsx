@@ -40,6 +40,7 @@ import {
 } from '../neighborhood-activities/neighborhood-activity-management';
 import { WardOverviewStats } from './ward-overview-stats';
 import { PeriodicReportCard } from './periodic-report-card';
+import { AppIcon } from '../app-icon';
 
 interface OfficerViewProps {
   user: UserDto;
@@ -175,16 +176,6 @@ export function OfficerView({ user }: OfficerViewProps) {
       items={navItems}
       activeSection={currentSection}
       onSectionChange={setActiveSection}
-      headerActions={
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={() => handleOpenCreateLeader()}
-          className="hidden bg-blue-600 text-xs font-semibold shadow-sm hover:bg-blue-700 sm:inline-flex"
-        >
-          + Bổ nhiệm Tổ trưởng
-        </Button>
-      }
     >
       {/* Toast Feedback */}
       {toastFeedback && (
@@ -238,7 +229,7 @@ export function OfficerView({ user }: OfficerViewProps) {
               {/* Policy & Guidance */}
               <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-xs text-blue-900 space-y-2">
                 <h5 className="font-bold text-blue-950 flex items-center gap-1.5">
-                  <span>📋</span>
+                  <AppIcon name="clipboard" className="h-4 w-4 shrink-0 text-blue-900" />
                   <span>Quy định phân quyền và bổ nhiệm:</span>
                 </h5>
                 <ul className="list-disc list-inside space-y-1 text-blue-800">
@@ -246,7 +237,7 @@ export function OfficerView({ user }: OfficerViewProps) {
                     <strong>Thẩm quyền cán bộ phường:</strong> Khởi tạo tài khoản Trưởng khu phố và phân công phụ trách khu phố tương ứng.
                   </li>
                   <li>
-                    <strong>Trách nhiệm Trưởng khu phố (SRS FR-03):</strong> Trực tiếp xét duyệt hoặc từ chối hồ sơ cư dân đăng ký vào khu phố, quản lý sổ hoạt động và phát hành thông báo nội bộ.
+                    <strong>Trách nhiệm Trưởng khu phố:</strong> Trực tiếp xét duyệt hoặc từ chối hồ sơ cư dân đăng ký vào khu phố, quản lý sổ hoạt động và phát hành thông báo nội bộ.
                   </li>
                   <li>
                     <strong>Kích hoạt:</strong> Tài khoản Trưởng khu phố sau khi tạo sẽ có hiệu lực đăng nhập OTP ngay lập tức.
@@ -317,7 +308,7 @@ export function OfficerView({ user }: OfficerViewProps) {
         </div>
       )}
 
-      {/* Section 4: Periodic Reports (FR-20) */}
+      {/* Section 4: Periodic Reports */}
       {currentSection === 'reports' && <PeriodicReportCard />}
 
       {/* Section 5: Announcements Feed */}
@@ -399,14 +390,14 @@ export function OfficerView({ user }: OfficerViewProps) {
             </CardHeader>
 
             <CardContent className="space-y-6">
-              {/* SRS FR-03 Read-Only Oversight Notice */}
+              {/* Read-Only Oversight Notice */}
               <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs text-blue-900 space-y-1.5">
                 <div className="flex items-center gap-2 font-bold text-blue-950">
-                  <span>ℹ️</span>
+                  <AppIcon name="info" className="h-4 w-4 shrink-0 text-blue-950" />
                   <span>Chế độ Giám sát Cán bộ Phường (Oversight Mode):</span>
                 </div>
                 <p className="text-blue-800 leading-relaxed">
-                  Theo quy định phân quyền chuẩn của hệ thống (SRS FR-03), quyền phê duyệt và từ chối hồ sơ đăng ký cư dân thuộc thẩm quyền trực tiếp của Trưởng khu phố phụ trách địa bàn. Màn hình này hỗ trợ Cán bộ phường theo dõi số lượng và đôn đốc tiến độ xử lý của từng khu phố.
+                  Theo quy định phân quyền chuẩn của hệ thống, quyền phê duyệt và từ chối hồ sơ đăng ký cư dân thuộc thẩm quyền trực tiếp của Trưởng khu phố phụ trách địa bàn. Màn hình này hỗ trợ Cán bộ phường theo dõi số lượng và đôn đốc tiến độ xử lý của từng khu phố.
                 </p>
               </div>
 
@@ -433,8 +424,8 @@ export function OfficerView({ user }: OfficerViewProps) {
                 />
               ) : displayedPendingResidents.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 text-xl font-bold mb-2">
-                    ✓
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 mb-2">
+                    <AppIcon name="check" className="h-6 w-6" />
                   </div>
                   <h4 className="font-bold text-slate-900">
                     Không có hồ sơ cư dân nào đang chờ duyệt

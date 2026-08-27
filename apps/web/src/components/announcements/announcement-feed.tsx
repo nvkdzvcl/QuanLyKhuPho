@@ -24,6 +24,7 @@ import { CreateAnnouncementModal } from './create-announcement-modal';
 import { EditAnnouncementModal } from './edit-announcement-modal';
 import { RemoveAnnouncementModal } from './remove-announcement-modal';
 import { AnnouncementDetailModal } from './announcement-detail-modal';
+import { AppIcon } from '../app-icon';
 
 interface AnnouncementFeedProps {
   user: UserDto;
@@ -126,13 +127,14 @@ export function AnnouncementFeed({ user }: AnnouncementFeedProps) {
                   setScopeFilter(AnnouncementScope.WARD);
                   setPage(1);
                 }}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${
                   scopeFilter === AnnouncementScope.WARD
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                🌐 Toàn phường
+                <AppIcon name="globe" className="h-3.5 w-3.5" />
+                <span>Toàn phường</span>
               </button>
               <button
                 type="button"
@@ -140,13 +142,14 @@ export function AnnouncementFeed({ user }: AnnouncementFeedProps) {
                   setScopeFilter(AnnouncementScope.NEIGHBORHOOD);
                   setPage(1);
                 }}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${
                   scopeFilter === AnnouncementScope.NEIGHBORHOOD
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                🏡 {user.neighborhood?.name || 'Khu phố'}
+                <AppIcon name="home" className="h-3.5 w-3.5" />
+                <span>{user.neighborhood?.name || 'Khu phố'}</span>
               </button>
             </div>
 
@@ -198,8 +201,8 @@ export function AnnouncementFeed({ user }: AnnouncementFeedProps) {
             <Alert variant="error" message={getErrorMessage(error)} />
           ) : !feedData || feedData.items.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 p-12 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600 text-xl font-bold">
-                📢
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                <AppIcon name="megaphone" className="h-6 w-6" />
               </div>
               <h4 className="mt-3 text-base font-bold text-slate-900">
                 Chưa có thông báo nào
@@ -222,9 +225,15 @@ export function AnnouncementFeed({ user }: AnnouncementFeedProps) {
                           variant={item.scope === AnnouncementScope.WARD ? 'info' : 'warning'}
                           className="text-[11px]"
                         >
-                          {item.scope === AnnouncementScope.WARD
-                            ? '🌐 Toàn phường'
-                            : `🏡 ${item.neighborhood?.name || 'Khu phố'}`}
+                          <span className="flex items-center gap-1">
+                            <AppIcon
+                              name={item.scope === AnnouncementScope.WARD ? 'globe' : 'home'}
+                              className="h-3 w-3 inline"
+                            />
+                            {item.scope === AnnouncementScope.WARD
+                              ? 'Toàn phường'
+                              : (item.neighborhood?.name || 'Khu phố')}
+                          </span>
                         </Badge>
                         <span className="text-xs text-slate-400">
                           {new Date(item.createdAt).toLocaleDateString('vi-VN')}
@@ -273,11 +282,13 @@ export function AnnouncementFeed({ user }: AnnouncementFeedProps) {
                       </span>
                       {item.attachments.length > 0 && (
                         <span className="inline-flex items-center gap-1 text-blue-600 font-medium">
-                          📎 {item.attachments.length} tệp
+                          <AppIcon name="paperclip" className="h-3.5 w-3.5" />
+                          <span>{item.attachments.length} tệp</span>
                         </span>
                       )}
                       <span className="inline-flex items-center gap-1 text-slate-600 font-medium">
-                        💬 {item.commentsCount} ý kiến
+                        <AppIcon name="message-square" className="h-3.5 w-3.5" />
+                        <span>{item.commentsCount} ý kiến</span>
                       </span>
                     </div>
 

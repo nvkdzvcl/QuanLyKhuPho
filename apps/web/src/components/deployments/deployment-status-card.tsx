@@ -18,6 +18,7 @@ import type {
 } from '@quanlykhupho/shared-types';
 import { useDeploymentProfile } from '../../hooks/use-deployment-profile';
 import { getErrorMessage } from '../../lib/api-client';
+import { AppIcon } from '../app-icon';
 
 export interface DeploymentStatusCardProps {
   profileResponse?: DeploymentProfileResponseDto | null;
@@ -172,7 +173,7 @@ export function DeploymentStatusCard({
         <CardContent>
           <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/60 p-4 text-xs text-amber-900 space-y-2">
             <div className="flex items-center gap-2 font-bold text-amber-950">
-              <span aria-hidden="true">⚠️</span>
+              <AppIcon name="warning" className="h-4 w-4 shrink-0 text-amber-800" />
               <span>Hệ thống đang hoạt động ở chế độ mặc định:</span>
             </div>
             <p className="text-amber-800 leading-relaxed">
@@ -213,11 +214,11 @@ export function DeploymentStatusCard({
           <div className="shrink-0">
             {profile.confirmed ? (
               <Badge variant="success" className="gap-1">
-                <span aria-hidden="true">✓</span> Đã xác nhận chính thức
+                <AppIcon name="check" className="h-3.5 w-3.5" /> Đã xác nhận chính thức
               </Badge>
             ) : (
               <Badge variant="warning" className="gap-1">
-                <span aria-hidden="true">⏳</span> Bản nháp (Chưa xác nhận)
+                <AppIcon name="clock" className="h-3.5 w-3.5" /> Bản nháp (Chưa xác nhận)
               </Badge>
             )}
           </div>

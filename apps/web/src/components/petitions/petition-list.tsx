@@ -29,6 +29,7 @@ import {
   PetitionStatusBadge,
 } from './petition-status-badge';
 import { ExportModal } from '../exports/export-modal';
+import { AppIcon } from '../app-icon';
 
 interface PetitionListProps {
   user: UserDto;
@@ -38,10 +39,10 @@ interface PetitionListProps {
 
 const CATEGORY_FILTER_OPTIONS = [
   { value: '', label: 'Tất cả danh mục' },
-  { value: PetitionCategory.INFRASTRUCTURE, label: '🏗️ Cơ sở hạ tầng' },
-  { value: PetitionCategory.SANITATION, label: '🧹 Vệ sinh môi trường' },
-  { value: PetitionCategory.SECURITY, label: '🛡️ An ninh trật tự' },
-  { value: PetitionCategory.OTHER, label: '📌 Khác' },
+  { value: PetitionCategory.INFRASTRUCTURE, label: 'Cơ sở hạ tầng' },
+  { value: PetitionCategory.SANITATION, label: 'Vệ sinh môi trường' },
+  { value: PetitionCategory.SECURITY, label: 'An ninh trật tự' },
+  { value: PetitionCategory.OTHER, label: 'Khác' },
 ];
 
 export function PetitionList({ user, title, description }: PetitionListProps) {
@@ -146,9 +147,10 @@ export function PetitionList({ user, title, description }: PetitionListProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => setIsExportModalOpen(true)}
-                className="shrink-0"
+                className="shrink-0 flex items-center gap-1.5"
               >
-                📥 Xuất dữ liệu
+                <AppIcon name="download" className="h-4 w-4" />
+                <span>Xuất dữ liệu</span>
               </Button>
             )}
           </div>
@@ -177,13 +179,14 @@ export function PetitionList({ user, title, description }: PetitionListProps) {
                   setStatusFilter(PetitionStatus.REVIEWING);
                   setPage(1);
                 }}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition ${
                   statusFilter === PetitionStatus.REVIEWING
                     ? 'bg-amber-600 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                ⏳ Chờ tiếp nhận
+                <AppIcon name="clock" className="h-3 w-3" />
+                <span>Chờ tiếp nhận</span>
               </button>
               <button
                 type="button"
@@ -191,13 +194,14 @@ export function PetitionList({ user, title, description }: PetitionListProps) {
                   setStatusFilter(PetitionStatus.PROCESSING);
                   setPage(1);
                 }}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition ${
                   statusFilter === PetitionStatus.PROCESSING
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                ⚙️ Đang xử lý
+                <AppIcon name="settings" className="h-3 w-3" />
+                <span>Đang xử lý</span>
               </button>
               <button
                 type="button"
@@ -205,13 +209,14 @@ export function PetitionList({ user, title, description }: PetitionListProps) {
                   setStatusFilter(PetitionStatus.RESOLVED);
                   setPage(1);
                 }}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition ${
                   statusFilter === PetitionStatus.RESOLVED
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                ✓ Đã giải quyết
+                <AppIcon name="check" className="h-3 w-3" />
+                <span>Đã giải quyết</span>
               </button>
               <button
                 type="button"
@@ -219,13 +224,14 @@ export function PetitionList({ user, title, description }: PetitionListProps) {
                   setStatusFilter(PetitionStatus.REJECTED);
                   setPage(1);
                 }}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition ${
                   statusFilter === PetitionStatus.REJECTED
                     ? 'bg-red-600 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                ✕ Bị từ chối
+                <AppIcon name="x" className="h-3 w-3" />
+                <span>Bị từ chối</span>
               </button>
               <button
                 type="button"
@@ -233,13 +239,14 @@ export function PetitionList({ user, title, description }: PetitionListProps) {
                   setStatusFilter(PetitionStatus.CANCELLED);
                   setPage(1);
                 }}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition ${
                   statusFilter === PetitionStatus.CANCELLED
                     ? 'bg-slate-700 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                ⊘ Đã hủy
+                <AppIcon name="ban" className="h-3 w-3" />
+                <span>Đã hủy</span>
               </button>
             </div>
 
@@ -360,8 +367,8 @@ export function PetitionList({ user, title, description }: PetitionListProps) {
             </div>
           ) : !petitionsData || petitionsData.items.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 p-10 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500 text-xl font-bold">
-                📝
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                <AppIcon name="file-text" className="h-6 w-6" />
               </div>
               <h4 className="mt-3 text-base font-bold text-slate-900">
                 Chưa có kiến nghị nào phù hợp
@@ -403,8 +410,9 @@ export function PetitionList({ user, title, description }: PetitionListProps) {
                         <PetitionCategoryBadge category={item.category} />
                         <PetitionStatusBadge status={item.status} />
                         {!isResident && (
-                          <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                            🏡 {item.neighborhood?.name || 'Khu phố'}
+                          <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                            <AppIcon name="home" className="h-3 w-3" />
+                            <span>{item.neighborhood?.name || 'Khu phố'}</span>
                           </span>
                         )}
                         <span className="text-[11px] text-slate-400">
@@ -440,7 +448,8 @@ export function PetitionList({ user, title, description }: PetitionListProps) {
                       </span>
                       {item.evidence && item.evidence.length > 0 && (
                         <span className="inline-flex items-center gap-1 font-medium text-blue-600">
-                          📷 {item.evidence.length} ảnh
+                          <AppIcon name="camera" className="h-3.5 w-3.5" />
+                          <span>{item.evidence.length} ảnh</span>
                         </span>
                       )}
                     </div>

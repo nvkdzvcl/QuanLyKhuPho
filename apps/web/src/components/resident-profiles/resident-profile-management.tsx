@@ -37,6 +37,7 @@ import {
 import { getErrorMessage } from '../../lib/api-client';
 import { ExportModal, FilterSummaryItem } from '../exports/export-modal';
 import type { ActivityCreationSeed } from '../neighborhood-activities/neighborhood-activity-management';
+import { AppIcon } from '../app-icon';
 
 interface ResidentProfileManagementProps {
   user: UserDto;
@@ -93,7 +94,7 @@ export function ResidentProfileManagement({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeSearch, setActiveSearch] = useState<string>('');
 
-  // Advanced filter states (FR-24)
+  // Advanced filter states
   const [ageFrom, setAgeFrom] = useState<string>('');
   const [ageTo, setAgeTo] = useState<string>('');
   const [selectedRelationship, setSelectedRelationship] = useState<string>('');
@@ -557,7 +558,8 @@ export function ResidentProfileManagement({
                 className="text-xs sm:text-sm font-medium border-blue-200 bg-blue-50/50 text-blue-700 hover:bg-blue-100"
                 title="Trích xuất toàn bộ nhân khẩu khớp bộ lọc để tạo hoạt động khu phố"
               >
-                📝 Tạo hoạt động từ danh sách
+                <AppIcon name="edit" className="h-4 w-4 mr-1.5 inline" />
+                Tạo hoạt động từ danh sách
               </Button>
               <Button
                 variant="outline"
@@ -566,7 +568,8 @@ export function ResidentProfileManagement({
                 className="text-xs sm:text-sm border-slate-300 hover:bg-slate-50"
                 title="Xuất danh sách nhân khẩu ra tệp CSV hoặc Excel"
               >
-                📥 Xuất dữ liệu
+                <AppIcon name="download" className="h-4 w-4 mr-1.5 inline" />
+                Xuất dữ liệu
               </Button>
               <Button
                 variant="outline"
@@ -638,7 +641,8 @@ export function ResidentProfileManagement({
                   onClick={() => setIsAdvancedFiltersOpen((prev) => !prev)}
                   className="text-xs shrink-0"
                 >
-                  🔍 Bộ lọc nâng cao
+                  <AppIcon name="search" className="h-3.5 w-3.5 mr-1.5 inline" />
+                  Bộ lọc nâng cao
                   {activeAdvancedCount > 0 && (
                     <span className="ml-1.5 rounded-full bg-white/20 px-1.5 py-0.2 text-[10px] font-bold">
                       {activeAdvancedCount}
@@ -659,7 +663,7 @@ export function ResidentProfileManagement({
               </div>
             </div>
 
-            {/* Collapsible Advanced Filters Section (FR-24) */}
+          {/* Collapsible Advanced Filters Section */}
             {isAdvancedFiltersOpen && (
               <div className="rounded-2xl border border-slate-200 bg-slate-50/75 p-4 space-y-4 transition-all">
                 <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
@@ -669,9 +673,10 @@ export function ResidentProfileManagement({
                   <button
                     type="button"
                     onClick={() => setIsAdvancedFiltersOpen(false)}
-                    className="text-xs text-slate-400 hover:text-slate-600"
+                    className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1"
                   >
-                    Đóng ✕
+                    <span>Đóng</span>
+                    <AppIcon name="x" className="h-3.5 w-3.5" />
                   </button>
                 </div>
 
@@ -880,8 +885,8 @@ export function ResidentProfileManagement({
             />
           ) : items.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 p-12 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 text-xl font-bold">
-                👥
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                <AppIcon name="users" className="h-6 w-6" />
               </div>
               <h4 className="mt-3 text-base font-bold text-slate-900">
                 Chưa có hồ sơ nhân khẩu nào
@@ -1129,7 +1134,7 @@ export function ResidentProfileManagement({
             />
 
             <Input
-              label="Ngày cấp CCCD (tùy chọn)"
+              label="Ngày cấp CCCD"
               type="date"
               value={createForm.citizenIdIssueDate || ''}
               onChange={(e) =>
@@ -1634,7 +1639,7 @@ export function ResidentProfileManagement({
         ) : null}
       </Modal>
 
-      {/* Export Modal (FR-25) */}
+      {/* Export Modal */}
       <ExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}

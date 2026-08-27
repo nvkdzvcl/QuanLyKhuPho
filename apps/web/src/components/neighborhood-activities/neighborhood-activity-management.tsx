@@ -35,6 +35,7 @@ import {
 } from '../../hooks/use-neighborhood-activities';
 import { getErrorMessage } from '../../lib/api-client';
 import { ExportModal } from '../exports/export-modal';
+import { AppIcon } from '../app-icon';
 
 interface NeighborhoodActivityManagementProps {
   user: UserDto;
@@ -563,7 +564,8 @@ export function NeighborhoodActivityManagement({
                 onClick={() => setIsExportModalOpen(true)}
                 className="text-xs sm:text-sm"
               >
-                📥 Xuất dữ liệu
+                <AppIcon name="download" className="h-4 w-4 mr-1.5 inline" />
+                Xuất dữ liệu
               </Button>
               <Button
                 variant="outline"
@@ -715,8 +717,8 @@ export function NeighborhoodActivityManagement({
             />
           ) : activities.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 p-12 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 text-xl font-bold">
-                📅
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                <AppIcon name="calendar" className="h-6 w-6" />
               </div>
               <h4 className="mt-3 text-base font-bold text-slate-900">
                 Chưa có hoạt động nào trong tháng {selectedMonth}
@@ -1256,9 +1258,10 @@ export function NeighborhoodActivityManagement({
                   onClick={() =>
                     handleMarkAllAttendance(AttendanceStatus.ATTENDED)
                   }
-                  className="text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                  className="text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50 flex items-center gap-1"
                 >
-                  ✓ Tất cả có mặt
+                  <AppIcon name="check" className="h-3.5 w-3.5" />
+                  <span>Tất cả có mặt</span>
                 </Button>
                 <Button
                   type="button"
@@ -1267,9 +1270,10 @@ export function NeighborhoodActivityManagement({
                   onClick={() =>
                     handleMarkAllAttendance(AttendanceStatus.ABSENT)
                   }
-                  className="text-xs text-rose-700 border-rose-300 hover:bg-rose-50"
+                  className="text-xs text-rose-700 border-rose-300 hover:bg-rose-50 flex items-center gap-1"
                 >
-                  ✕ Tất cả vắng
+                  <AppIcon name="x" className="h-3.5 w-3.5" />
+                  <span>Tất cả vắng</span>
                 </Button>
               </div>
             </div>

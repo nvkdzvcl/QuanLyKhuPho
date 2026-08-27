@@ -45,6 +45,7 @@ import {
   NeighborhoodActivityManagement,
 } from '../neighborhood-activities/neighborhood-activity-management';
 import { ExportModal } from '../exports/export-modal';
+import { AppIcon } from '../app-icon';
 
 interface LeaderViewProps {
   user: UserDto;
@@ -294,8 +295,8 @@ export function LeaderView({ user }: LeaderViewProps) {
                 />
               ) : pendingResidents.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 text-xl font-bold">
-                    ✓
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 mb-2">
+                    <AppIcon name="check" className="h-6 w-6" />
                   </div>
                   <h4 className="mt-3 text-base font-bold text-slate-900">
                     Không có hồ sơ nào đang chờ duyệt
@@ -444,8 +445,8 @@ export function LeaderView({ user }: LeaderViewProps) {
                 />
               ) : managedResidents.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 text-xl font-bold">
-                    👥
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                    <AppIcon name="users" className="h-6 w-6" />
                   </div>
                   <h4 className="mt-3 text-base font-bold text-slate-900">
                     Không có cư dân nào trong danh sách
@@ -543,7 +544,7 @@ export function LeaderView({ user }: LeaderViewProps) {
           {/* Moderation Guidance & Policy */}
           <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-xs text-blue-900 space-y-2">
             <h5 className="font-bold text-blue-950 flex items-center gap-1.5">
-              <span>📋</span>
+              <AppIcon name="clipboard" className="h-4 w-4 shrink-0 text-blue-900" />
               <span>Quy định xét duyệt tài khoản cư dân:</span>
             </h5>
             <ul className="list-disc list-inside space-y-1 text-blue-800">
@@ -607,8 +608,8 @@ export function LeaderView({ user }: LeaderViewProps) {
                 {/* Export Residents */}
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700 text-lg font-bold">
-                      👥
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+                      <AppIcon name="users" className="h-5 w-5" />
                     </span>
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">
@@ -632,8 +633,8 @@ export function LeaderView({ user }: LeaderViewProps) {
                 {/* Export Political Social */}
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700 text-lg font-bold">
-                      🎖️
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                      <AppIcon name="award" className="h-5 w-5" />
                     </span>
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">
@@ -659,8 +660,8 @@ export function LeaderView({ user }: LeaderViewProps) {
                 {/* Export Activities */}
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700 text-lg font-bold">
-                      📖
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
+                      <AppIcon name="book" className="h-5 w-5" />
                     </span>
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">
@@ -686,8 +687,8 @@ export function LeaderView({ user }: LeaderViewProps) {
                 {/* Export Petitions */}
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-700 text-lg font-bold">
-                      📬
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-700">
+                      <AppIcon name="mail" className="h-5 w-5" />
                     </span>
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">

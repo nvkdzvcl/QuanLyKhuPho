@@ -7,6 +7,7 @@ import { useMonthlyNeighborhoodActivities } from '../../hooks/use-neighborhood-a
 import { usePetitions } from '../../hooks/use-petitions';
 import { useResidentProfiles } from '../../hooks/use-resident-profiles';
 import { getErrorMessage } from '../../lib/api-client';
+import { AppIcon } from '../app-icon';
 
 export interface LeaderOverviewProps {
   user: UserDto;
@@ -108,7 +109,9 @@ export function LeaderOverview({ user, pendingResidents, isLoadingPending, isErr
           <div className="p-5"><Alert variant="error" message={getErrorMessage(pendingError) || 'Không thể tải danh sách hồ sơ chờ duyệt.'} /></div>
         ) : pendingResidents.length === 0 ? (
           <div className="px-6 py-12 text-center">
-            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50 text-lg font-bold text-emerald-600">✓</span>
+            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <AppIcon name="check" className="h-5 w-5" />
+            </span>
             <h3 className="mt-3 text-sm font-semibold text-slate-900">Không có hồ sơ chờ xử lý</h3>
             <p className="mt-1 text-xs text-slate-500">Hồ sơ mới sẽ xuất hiện tại đây khi cư dân đăng ký.</p>
           </div>
@@ -125,7 +128,7 @@ export function LeaderOverview({ user, pendingResidents, isLoadingPending, isErr
                     <td className="px-4 py-4 text-slate-700">Đăng ký cư trú</td>
                     <td className="px-4 py-4 text-slate-700"><div>{formatDate(resident.createdAt)}</div><div className="text-xs text-slate-400">{formatTime(resident.createdAt)}</div></td>
                     <td className="max-w-60 px-4 py-4 text-slate-600">{resident.address || 'Chưa cập nhật địa chỉ'}</td>
-                    <td className="px-6 py-4"><div className="flex justify-end gap-2"><Button variant="primary" size="sm" onClick={() => onApproveResident(resident)} isLoading={isApproving} className="bg-emerald-600 text-xs hover:bg-emerald-700">✓ Duyệt</Button><Button variant="outline" size="sm" onClick={() => onOpenRejectModal(resident)} className="border-red-300 text-xs text-red-600 hover:bg-red-50">× Từ chối</Button></div></td>
+                    <td className="px-6 py-4"><div className="flex justify-end gap-2"><Button variant="primary" size="sm" onClick={() => onApproveResident(resident)} isLoading={isApproving} className="bg-emerald-600 text-xs hover:bg-emerald-700 flex items-center gap-1"><AppIcon name="check" className="h-3.5 w-3.5" /><span>Duyệt</span></Button><Button variant="outline" size="sm" onClick={() => onOpenRejectModal(resident)} className="border-red-300 text-xs text-red-600 hover:bg-red-50 flex items-center gap-1"><AppIcon name="x" className="h-3.5 w-3.5" /><span>Từ chối</span></Button></div></td>
                   </tr>
                 ))}
               </tbody>

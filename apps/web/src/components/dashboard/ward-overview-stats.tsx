@@ -455,7 +455,7 @@ function NeighborhoodDetail({
 
             <Alert
               variant="info"
-              message="Hồ sơ dân cư chi tiết và nhật ký hoạt động chưa có mô hình dữ liệu trong Sprint này. Màn hình chỉ hiển thị các thống kê và nội dung đã được lưu trong hệ thống."
+              message="Màn hình hiển thị các số liệu thống kê tổng hợp và nội dung hoạt động đã được ghi nhận trong hệ thống."
             />
 
             <div className="grid gap-5 lg:grid-cols-2">

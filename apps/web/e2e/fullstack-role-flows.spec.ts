@@ -110,8 +110,14 @@ async function loginWithDevOtp(page: Page, phone: string): Promise<void> {
  * Test helper: Logs out the current user via the visible role workspace UI.
  */
 async function logoutUser(page: Page, fullName: string): Promise<void> {
-  const logoutBtn = page.getByRole('button', {
-    name: new RegExp(`Đăng xuất tài khoản ${fullName}`, 'i'),
+  const accountTrigger = page.getByRole('button', {
+    name: new RegExp(`Tài khoản ${fullName}`, 'i'),
+  });
+  await expect(accountTrigger).toBeVisible({ timeout: 10_000 });
+  await accountTrigger.click();
+
+  const logoutBtn = page.getByRole('menuitem', {
+    name: /Đăng xuất/i,
   });
   await expect(logoutBtn).toBeVisible({ timeout: 10_000 });
   await logoutBtn.click();

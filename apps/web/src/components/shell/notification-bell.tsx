@@ -11,6 +11,7 @@ import {
 } from '../../hooks/use-notifications';
 import { AnnouncementDetailModal } from '../announcements/announcement-detail-modal';
 import { UserDto } from '@quanlykhupho/shared-types';
+import { AppIcon } from '../app-icon';
 
 interface NotificationBellProps {
   currentUser: UserDto;
@@ -130,8 +131,14 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
           {isPushSupported && (
             <div className="my-2.5 flex items-center justify-between rounded-xl bg-slate-50 p-2.5 border border-slate-100 text-xs">
               <div className="space-y-0.5">
-                <p className="font-semibold text-slate-800">
-                  {isPushSubscribed ? '🔔 Đã bật thông báo đẩy' : '🔕 Chưa bật thông báo đẩy'}
+                <p className="flex items-center gap-1.5 font-semibold text-slate-800">
+                  <AppIcon
+                    name={isPushSubscribed ? 'bell' : 'bell-off'}
+                    className="h-3.5 w-3.5 text-blue-600 shrink-0"
+                  />
+                  <span>
+                    {isPushSubscribed ? 'Đã bật thông báo đẩy' : 'Chưa bật thông báo đẩy'}
+                  </span>
                 </p>
                 <p className="text-[11px] text-slate-500">
                   {isPushSubscribed
