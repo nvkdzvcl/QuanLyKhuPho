@@ -13,12 +13,20 @@ import {
   Input,
   Modal,
 } from '@quanlykhupho/ui';
-import { ExportDataset, UserDto, UserRole } from '@quanlykhupho/shared-types';
+import {
+  AccountStatus,
+  ExportDataset,
+  ManagedResidentStatus,
+  UserDto,
+  UserRole,
+} from '@quanlykhupho/shared-types';
 import {
   useApproveResident,
   useLockResident,
+  useManagedResidents,
   usePendingResidents,
   useRejectResident,
+  useUnlockResident,
 } from '../../hooks/use-pending-residents';
 import { getErrorMessage } from '../../lib/api-client';
 
@@ -54,9 +62,27 @@ export function LeaderView({ user }: LeaderViewProps) {
     error,
   } = usePendingResidents();
 
+  const [managedStatusFilter, setManagedStatusFilter] = useState<
+    'ALL' | ManagedResidentStatus
+  >('ALL');
+
+  const {
+    data: managedResidents = [],
+    isLoading: isLoadingManaged,
+    isError: isErrorManaged,
+    error: managedError,
+  } = useManagedResidents(
+    managedStatusFilter === 'ALL' ? undefined : { status: managedStatusFilter },
+  );
+
   const approveMutation = useApproveResident();
   const rejectMutation = useRejectResident();
   const lockMutation = useLockResident();
+  const unlockMutation = useUnlockResident();
+
+  const [approvingResidentId, setApprovingResidentId] = useState<string | null>(
+    null,
+  );
 
   // Modal states for Moderation
   const [rejectingResident, setRejectingResident] = useState<UserDto | null>(
@@ -69,6 +95,11 @@ export function LeaderView({ user }: LeaderViewProps) {
   const [lockReason, setLockReason] = useState('');
   const [lockError, setLockError] = useState<string | null>(null);
 
+  const [unlockingResident, setUnlockingResident] = useState<UserDto | null>(
+    null,
+  );
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+
   // Modal state for Exports
   const [exportModalDataset, setExportModalDataset] =
     useState<ExportDataset | null>(null);
@@ -79,6 +110,7 @@ export function LeaderView({ user }: LeaderViewProps) {
   } | null>(null);
 
   const handleApprove = async (resident: UserDto) => {
+    setApprovingResidentId(resident.id);
     try {
       await approveMutation.mutateAsync(resident.id);
       setToastFeedback({
@@ -90,6 +122,8 @@ export function LeaderView({ user }: LeaderViewProps) {
         variant: 'error',
         message: getErrorMessage(err),
       });
+    } finally {
+      setApprovingResidentId(null);
     }
   };
 
@@ -138,6 +172,22 @@ export function LeaderView({ user }: LeaderViewProps) {
       setLockError(null);
     } catch (err) {
       setLockError(getErrorMessage(err));
+    }
+  };
+
+  const handleConfirmUnlock = async () => {
+    if (!unlockingResident) return;
+
+    try {
+      await unlockMutation.mutateAsync(unlockingResident.id);
+      setToastFeedback({
+        variant: 'success',
+        message: `Đã mở khóa tài khoản cư dân "${unlockingResident.fullName}" thành công.`,
+      });
+      setUnlockingResident(null);
+      setUnlockError(null);
+    } catch (err) {
+      setUnlockError(getErrorMessage(err));
     }
   };
 
@@ -191,16 +241,17 @@ export function LeaderView({ user }: LeaderViewProps) {
         />
       )}
 
-      {/* Section 2: Account Moderation (Full Pending Queue & Policy) */}
+      {/* Section 2: Account Moderation (Full Pending Queue, Managed Residents & Policy) */}
       {currentSection === 'moderation' && (
         <div className="space-y-6">
+          {/* Pending Residents Card */}
           <Card>
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <CardTitle>Danh sách Cư dân chờ phê duyệt</CardTitle>
                   <CardDescription>
-                    Hồ sơ cư dân tự đăng ký qua số điện thoại thuộc {user.neighborhood?.name}
+                    Hồ sơ cư dân tự đăng ký qua số điện thoại thuộc {user.neighborhood?.name || 'Khu phố'}
                   </CardDescription>
                 </div>
                 <Badge variant={pendingResidents.length > 0 ? 'warning' : 'success'}>
@@ -284,7 +335,8 @@ export function LeaderView({ user }: LeaderViewProps) {
                           variant="primary"
                           size="sm"
                           onClick={() => handleApprove(res)}
-                          isLoading={approveMutation.isPending}
+                          isLoading={approveMutation.isPending && approvingResidentId === res.id}
+                          disabled={approveMutation.isPending}
                           className="flex-1 sm:flex-initial"
                         >
                           Duyệt hồ sơ
@@ -297,25 +349,192 @@ export function LeaderView({ user }: LeaderViewProps) {
                             setRejectReason('');
                             setRejectError(null);
                           }}
+                          disabled={rejectMutation.isPending}
                           className="flex-1 sm:flex-initial"
                         >
                           Từ chối
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setLockingResident(res);
-                            setLockReason('');
-                            setLockError(null);
-                          }}
-                          className="text-xs"
-                        >
-                          Khóa
-                        </Button>
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Managed Residents Card (Active & Locked) */}
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle>Danh sách Cư dân trong Khu phố</CardTitle>
+                  <CardDescription>
+                    Tài khoản cư dân đang hoạt động và tạm khóa thuộc {user.neighborhood?.name || 'Khu phố'}
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-1.5 self-start sm:self-auto rounded-lg border border-slate-200 bg-slate-50 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setManagedStatusFilter('ALL')}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition ${
+                      managedStatusFilter === 'ALL'
+                        ? 'bg-white text-slate-950 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Tất cả
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setManagedStatusFilter(AccountStatus.ACTIVE)}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition ${
+                      managedStatusFilter === AccountStatus.ACTIVE
+                        ? 'bg-white text-emerald-700 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Đang hoạt động
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setManagedStatusFilter(AccountStatus.LOCKED)}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition ${
+                      managedStatusFilter === AccountStatus.LOCKED
+                        ? 'bg-white text-red-700 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Đã khóa
+                  </button>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent>
+              {isLoadingManaged ? (
+                <div className="flex items-center justify-center py-12 text-slate-500">
+                  <svg
+                    className="animate-spin h-6 w-6 mr-2 text-amber-600"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Đang tải danh sách cư dân...
+                </div>
+              ) : isErrorManaged ? (
+                <Alert
+                  variant="error"
+                  message={
+                    getErrorMessage(managedError) ||
+                    'Không thể tải danh sách cư dân.'
+                  }
+                />
+              ) : managedResidents.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 text-xl font-bold">
+                    👥
+                  </div>
+                  <h4 className="mt-3 text-base font-bold text-slate-900">
+                    Không có cư dân nào trong danh sách
+                  </h4>
+                  <p className="mt-1 text-sm text-slate-500 max-w-md mx-auto">
+                    {managedStatusFilter === 'ALL'
+                      ? 'Chưa có tài khoản cư dân nào được kích hoạt hoặc quản lý trong khu phố.'
+                      : managedStatusFilter === AccountStatus.ACTIVE
+                        ? 'Hiện không có cư dân nào đang ở trạng thái hoạt động.'
+                        : 'Hiện không có cư dân nào đang bị tạm khóa.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {managedResidents.map((res) => {
+                    const isActive = res.status === AccountStatus.ACTIVE;
+                    const isLocked = res.status === AccountStatus.LOCKED;
+
+                    return (
+                      <div
+                        key={res.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 transition hover:shadow-sm"
+                      >
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-base font-bold text-slate-900 leading-tight">
+                              {res.fullName}
+                            </h4>
+                            {isActive && (
+                              <Badge variant="success">Đang hoạt động</Badge>
+                            )}
+                            {isLocked && (
+                              <Badge variant="destructive">Đã khóa</Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-600">
+                            <strong>Số điện thoại:</strong>{' '}
+                            <span className="font-mono">{res.maskedPhone}</span>
+                          </p>
+                          <p className="text-xs text-slate-600">
+                            <strong>Địa chỉ:</strong>{' '}
+                            {res.address || 'Chưa có thông tin'}
+                          </p>
+                          {isLocked && res.lockReason && (
+                            <div className="mt-1.5 rounded-lg border border-red-100 bg-red-50/80 px-3 py-1.5 text-xs text-red-800">
+                              <span className="font-semibold">Lý do khóa:</span>{' '}
+                              {res.lockReason}
+                            </div>
+                          )}
+                          <p className="text-[11px] text-slate-400">
+                            Cập nhật lúc:{' '}
+                            {new Date(res.updatedAt || res.createdAt).toLocaleString(
+                              'vi-VN',
+                            )}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 border-t border-slate-200 pt-3 sm:border-t-0 sm:pt-0">
+                          {isActive && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setLockingResident(res);
+                                setLockReason('');
+                                setLockError(null);
+                              }}
+                              className="text-xs border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
+                            >
+                              Khóa tài khoản
+                            </Button>
+                          )}
+                          {isLocked && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setUnlockingResident(res);
+                                setUnlockError(null);
+                              }}
+                              className="text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300"
+                            >
+                              Mở khóa
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -546,7 +765,13 @@ export function LeaderView({ user }: LeaderViewProps) {
       {/* Lock Modal */}
       <Modal
         isOpen={Boolean(lockingResident)}
-        onClose={() => setLockingResident(null)}
+        onClose={() => {
+          if (!lockMutation.isPending) {
+            setLockingResident(null);
+            setLockReason('');
+            setLockError(null);
+          }
+        }}
         title="Khóa tài khoản cư dân"
         description={`Bạn đang khóa tài khoản của: ${lockingResident?.fullName}`}
         footer={
@@ -554,7 +779,11 @@ export function LeaderView({ user }: LeaderViewProps) {
             <Button
               variant="outline"
               size="md"
-              onClick={() => setLockingResident(null)}
+              onClick={() => {
+                setLockingResident(null);
+                setLockReason('');
+                setLockError(null);
+              }}
               disabled={lockMutation.isPending}
             >
               Hủy
@@ -587,6 +816,69 @@ export function LeaderView({ user }: LeaderViewProps) {
             autoFocus
             helperText="Khóa tài khoản sẽ thu hồi toàn bộ phiên đăng nhập đang hoạt động của cư dân."
           />
+        </div>
+      </Modal>
+
+      {/* Unlock Modal */}
+      <Modal
+        isOpen={Boolean(unlockingResident)}
+        onClose={() => {
+          if (!unlockMutation.isPending) {
+            setUnlockingResident(null);
+            setUnlockError(null);
+          }
+        }}
+        title="Mở khóa tài khoản cư dân"
+        description={`Bạn đang mở khóa tài khoản cho cư dân: ${unlockingResident?.fullName}`}
+        footer={
+          <>
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => {
+                setUnlockingResident(null);
+                setUnlockError(null);
+              }}
+              disabled={unlockMutation.isPending}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={handleConfirmUnlock}
+              isLoading={unlockMutation.isPending}
+            >
+              Xác nhận mở khóa
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          {unlockError && (
+            <Alert
+              variant="error"
+              message={unlockError}
+              onClose={() => setUnlockError(null)}
+            />
+          )}
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700 space-y-2">
+            <p>
+              <strong>Họ và tên:</strong> {unlockingResident?.fullName}
+            </p>
+            <p>
+              <strong>Số điện thoại:</strong>{' '}
+              <span className="font-mono">{unlockingResident?.maskedPhone}</span>
+            </p>
+            {unlockingResident?.lockReason && (
+              <p className="text-red-700">
+                <strong>Lý do khóa trước đó:</strong> {unlockingResident.lockReason}
+              </p>
+            )}
+            <p className="text-slate-500 pt-1 border-t border-slate-200">
+              Sau khi mở khóa, tài khoản cư dân sẽ chuyển về trạng thái đang hoạt động và có thể đăng nhập bình thường.
+            </p>
+          </div>
         </div>
       </Modal>
 

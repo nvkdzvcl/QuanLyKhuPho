@@ -11,6 +11,7 @@ import {
   CreateLeaderDto,
   ErrorCode,
   LockResidentDto,
+  ManagedResidentQueryDto,
   RejectResidentDto,
   UserDto,
   UserRole,
@@ -112,6 +113,75 @@ export class UsersService {
       where,
       include: { neighborhood: true },
       orderBy: { createdAt: 'desc' },
+    });
+
+    return accounts.map((acc) => this.formatUserDto(acc));
+  }
+
+  /**
+   * List managed resident accounts (active and locked) for FR-04 moderation.
+   * Leaders can ONLY see residents in their assigned neighborhood.
+   * Officers can see all managed residents or filter by neighborhood.
+   */
+  async getManagedResidents(
+    currentUser: UserDto,
+    query?: ManagedResidentQueryDto,
+  ): Promise<UserDto[]> {
+    if (
+      currentUser.role !== UserRole.LEADER &&
+      currentUser.role !== UserRole.OFFICER
+    ) {
+      throw new AppException(
+        'Chức năng này chỉ dành cho Trưởng khu phố và Cán bộ phường.',
+        HttpStatus.FORBIDDEN,
+        ErrorCode.FORBIDDEN,
+      );
+    }
+
+    const where: Prisma.AccountWhereInput = {
+      role: Role.resident,
+    };
+
+    if (query?.status) {
+      if (
+        query.status !== AccountStatus.ACTIVE &&
+        query.status !== AccountStatus.LOCKED
+      ) {
+        throw new AppException(
+          'Trạng thái lọc chỉ chấp nhận active hoặc locked.',
+          HttpStatus.BAD_REQUEST,
+          ErrorCode.VALIDATION_ERROR,
+        );
+      }
+      where.status =
+        query.status === AccountStatus.ACTIVE
+          ? DbAccountStatus.active
+          : DbAccountStatus.locked;
+    } else {
+      where.status = {
+        in: [DbAccountStatus.active, DbAccountStatus.locked],
+      };
+    }
+
+    if (currentUser.role === UserRole.LEADER) {
+      if (!currentUser.neighborhoodId) {
+        throw new AppException(
+          'Trưởng khu phố chưa được gán vào khu phố nào.',
+          HttpStatus.FORBIDDEN,
+          ErrorCode.FORBIDDEN,
+        );
+      }
+      where.neighborhoodId = currentUser.neighborhoodId;
+    } else if (currentUser.role === UserRole.OFFICER) {
+      if (query?.neighborhoodId) {
+        where.neighborhoodId = query.neighborhoodId;
+      }
+    }
+
+    const accounts = await this.prisma.account.findMany({
+      where,
+      include: { neighborhood: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
     });
 
     return accounts.map((acc) => this.formatUserDto(acc));

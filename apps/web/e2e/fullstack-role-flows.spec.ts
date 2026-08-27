@@ -13,6 +13,7 @@ import { PetitionCategory } from '@quanlykhupho/shared-types';
  * 4. Resident logs in via dev OTP and submits a new petition.
  * 5. Leader receives the petition, transitions to PROCESSING, and RESOLVES it.
  * 6. Officer inspects ward-wide petition list and verifies resolved petition & history.
+ * 7. Leader locks resident account, verifies blocked login, unlocks account, and resident logs in again.
  */
 
 const OFFICER = {
@@ -71,6 +72,29 @@ async function loginWithDevOtp(page: Page, phone: string): Promise<void> {
     name: 'Tự động điền',
     exact: true,
   });
+  const rateLimitMessage = page.getByText(
+    /Bạn đã yêu cầu gửi mã quá nhiều lần.*thử lại sau \d+ giây/i,
+  );
+  const sendOutcome = await Promise.race([
+    autofillBtn
+      .waitFor({ state: 'visible', timeout: 15_000 })
+      .then(() => 'OTP' as const),
+    rateLimitMessage
+      .waitFor({ state: 'visible', timeout: 15_000 })
+      .then(() => 'RATE_LIMIT' as const),
+  ]);
+
+  if (sendOutcome === 'RATE_LIMIT') {
+    const message = await rateLimitMessage.textContent();
+    const retryAfterSeconds = Number(message?.match(/(\d+)\s*giây/i)?.[1]);
+    expect(retryAfterSeconds).toBeGreaterThan(0);
+    // Honor the server-provided retry window instead of weakening the OTP
+    // policy or using a fixed sleep that can race the Redis expiry.
+    await page.waitForTimeout((retryAfterSeconds + 1) * 1_000);
+    await expect(sendOtpBtn).toBeEnabled();
+    await sendOtpBtn.click();
+  }
+
   await expect(autofillBtn).toBeVisible({ timeout: 15_000 });
   await autofillBtn.click();
 
@@ -102,8 +126,11 @@ async function logoutUser(page: Page, fullName: string): Promise<void> {
 }
 
 test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
-  test('serial end-to-end journey across Officer, Resident, and Leader', async ({ page }) => {
-    test.setTimeout(120_000);
+  test('serial end-to-end journey across Officer, Resident, and Leader', async ({
+    page,
+    browser,
+  }) => {
+    test.setTimeout(180_000);
 
     // Initial navigation to public landing page
     await page.goto('/');
@@ -492,6 +519,148 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
 
       // Final logout
       await logoutUser(page, OFFICER.fullName);
+    });
+
+    // =========================================================================
+    // STEP 7: Leader locks resident account, blocks login, unlocks, and restores login
+    // =========================================================================
+    await test.step('7. Leader locks resident, verifies blocked login, unlocks account, and resident logs in again', async () => {
+      // 1. Leader authenticates and navigates to Account Moderation
+      await loginWithDevOtp(page, LEADER.phone);
+      await expect(page.getByText('Trưởng khu phố').first()).toBeVisible({ timeout: 10_000 });
+
+      const moderationNavBtn = page.getByRole('button', {
+        name: 'Tài khoản cư dân',
+        exact: true,
+      });
+      await expect(moderationNavBtn).toBeVisible();
+      await moderationNavBtn.click();
+
+      await expect(
+        page.getByRole('heading', { name: 'Danh sách Cư dân trong Khu phố' }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // 2. Locate active resident and perform lock action with mandatory reason
+      const residentHeading = page.getByRole('heading', {
+        name: RESIDENT.fullName,
+      });
+      await expect(residentHeading).toBeVisible({ timeout: 10_000 });
+
+      const activeResidentCard = page
+        .locator('div')
+        .filter({ has: residentHeading })
+        .filter({ has: page.getByText('Đang hoạt động') })
+        .first();
+      await expect(activeResidentCard).toBeVisible();
+
+      const lockBtn = activeResidentCard.getByRole('button', {
+        name: 'Khóa tài khoản',
+        exact: true,
+      });
+      await expect(lockBtn).toBeVisible();
+      await lockBtn.click();
+
+      const lockDialog = page.getByRole('dialog');
+      await expect(
+        lockDialog.getByRole('heading', { name: 'Khóa tài khoản cư dân' }),
+      ).toBeVisible();
+
+      const lockReasonInput = lockDialog.getByLabel(
+        /Lý do khóa tài khoản \(bắt buộc\)/i,
+      );
+      await lockReasonInput.fill('Tạm khóa để xác minh cập nhật thông tin cư trú E2E');
+
+      const confirmLockBtn = lockDialog.getByRole('button', {
+        name: 'Xác nhận khóa tài khoản',
+        exact: true,
+      });
+      await expect(confirmLockBtn).toBeEnabled();
+      await confirmLockBtn.click();
+
+      await expect(
+        page.getByText(
+          new RegExp(`Đã khóa tài khoản "${RESIDENT.fullName}"`, 'i'),
+        ),
+      ).toBeVisible({ timeout: 10_000 });
+
+      await expect(
+        page.getByText('Tạm khóa để xác minh cập nhật thông tin cư trú E2E'),
+      ).toBeVisible();
+
+      // 3. A separate resident browser session is blocked while the leader
+      // remains authenticated and can continue the moderation workflow.
+      const lockedResidentContext = await browser.newContext();
+      const lockedResidentPage = await lockedResidentContext.newPage();
+      try {
+        await lockedResidentPage.goto(new URL('/', page.url()).toString());
+        await loginWithDevOtp(lockedResidentPage, RESIDENT.phone);
+
+        await expect(
+          lockedResidentPage.getByRole('heading', {
+            name: 'Tài khoản đã bị tạm khóa',
+          }),
+        ).toBeVisible({ timeout: 10_000 });
+        await expect(lockedResidentPage.getByText('Đã bị khóa')).toBeVisible();
+
+        const dismissModalBtn = lockedResidentPage.getByRole('button', {
+          name: 'Đã hiểu & Đóng',
+          exact: true,
+        });
+        await expect(dismissModalBtn).toBeVisible();
+        await dismissModalBtn.click();
+
+        await expect(
+          lockedResidentPage.getByRole('button', {
+            name: 'Đăng nhập / Đăng ký bằng OTP',
+            exact: true,
+          }),
+        ).toBeVisible();
+      } finally {
+        await lockedResidentContext.close();
+      }
+
+      // 4. The still-authenticated leader unlocks the resident account.
+
+      const lockedResidentCard = page
+        .locator('div')
+        .filter({ has: page.getByRole('heading', { name: RESIDENT.fullName }) })
+        .filter({ has: page.getByText('Đã khóa') })
+        .first();
+      await expect(lockedResidentCard).toBeVisible({ timeout: 10_000 });
+
+      const unlockBtn = lockedResidentCard.getByRole('button', {
+        name: 'Mở khóa',
+        exact: true,
+      });
+      await expect(unlockBtn).toBeVisible();
+      await unlockBtn.click();
+
+      const unlockDialog = page.getByRole('dialog');
+      await expect(
+        unlockDialog.getByRole('heading', { name: 'Mở khóa tài khoản cư dân' }),
+      ).toBeVisible();
+
+      const confirmUnlockBtn = unlockDialog.getByRole('button', {
+        name: 'Xác nhận mở khóa',
+        exact: true,
+      });
+      await expect(confirmUnlockBtn).toBeEnabled();
+      await confirmUnlockBtn.click();
+
+      await expect(
+        page.getByText(
+          new RegExp(`Đã mở khóa tài khoản cư dân "${RESIDENT.fullName}" thành công`, 'i'),
+        ),
+      ).toBeVisible({ timeout: 10_000 });
+
+      await logoutUser(page, LEADER.fullName);
+
+      // 5. Resident logs in successfully again
+      await loginWithDevOtp(page, RESIDENT.phone);
+      await expect(page.getByText(RESIDENT.fullName).first()).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText(/Cư dân · Khu phố 1/i).first()).toBeVisible();
+
+      await logoutUser(page, RESIDENT.fullName);
     });
   });
 });

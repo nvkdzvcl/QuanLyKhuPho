@@ -30,3 +30,10 @@ export interface UserDto {
 export interface CurrentUserResponseDto {
   user: UserDto;
 }
+
+export type ManagedResidentStatus = AccountStatus.ACTIVE | AccountStatus.LOCKED;
+
+export interface ManagedResidentQueryDto {
+  status?: ManagedResidentStatus;
+  neighborhoodId?: string;
+}

@@ -78,6 +78,9 @@ export function AuthFlowModal({ isOpen, onClose }: AuthFlowModalProps) {
       reason,
       message,
     });
+    // Keep only the status dialog open. Leaving the OTP modal underneath traps
+    // focus and blocks the next login attempt after the status dialog closes.
+    handleClose();
   };
 
   const handleRegisteredSuccess = (_user: UserDto, message: string) => {

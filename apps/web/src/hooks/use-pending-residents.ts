@@ -3,6 +3,7 @@ import {
   ApiResponseEnvelope,
   CreateLeaderDto,
   LockResidentDto,
+  ManagedResidentQueryDto,
   RejectResidentDto,
   UserDto,
 } from '@quanlykhupho/shared-types';
@@ -22,6 +23,26 @@ export function usePendingResidents(neighborhoodId?: string) {
   });
 }
 
+export function useManagedResidents(query?: ManagedResidentQueryDto) {
+  return useQuery({
+    queryKey: ['managed-residents', query],
+    queryFn: async (): Promise<UserDto[]> => {
+      const params: Record<string, string> = {};
+      if (query?.status) {
+        params.status = query.status;
+      }
+      if (query?.neighborhoodId) {
+        params.neighborhoodId = query.neighborhoodId;
+      }
+      const res = await apiClient.get<ApiResponseEnvelope<UserDto[]>>(
+        '/users/residents',
+        { params },
+      );
+      return res.data.data;
+    },
+  });
+}
+
 export function useApproveResident() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -33,6 +54,7 @@ export function useApproveResident() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-residents'] });
+      queryClient.invalidateQueries({ queryKey: ['managed-residents'] });
     },
   });
 }
@@ -55,6 +77,7 @@ export function useRejectResident() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-residents'] });
+      queryClient.invalidateQueries({ queryKey: ['managed-residents'] });
     },
   });
 }
@@ -77,6 +100,7 @@ export function useLockResident() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-residents'] });
+      queryClient.invalidateQueries({ queryKey: ['managed-residents'] });
     },
   });
 }
@@ -92,6 +116,7 @@ export function useUnlockResident() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-residents'] });
+      queryClient.invalidateQueries({ queryKey: ['managed-residents'] });
     },
   });
 }
@@ -108,6 +133,7 @@ export function useCreateLeader() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-residents'] });
+      queryClient.invalidateQueries({ queryKey: ['managed-residents'] });
     },
   });
 }

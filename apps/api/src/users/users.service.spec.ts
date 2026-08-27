@@ -1,7 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConfigService } from '@nestjs/config';
 import { Account, Neighborhood, Prisma, Role, AccountStatus as DbAccountStatus } from '@prisma/client';
-import { AccountStatus, ErrorCode, UserDto, UserRole } from '@quanlykhupho/shared-types';
+import {
+  AccountStatus,
+  ErrorCode,
+  ManagedResidentStatus,
+  UserDto,
+  UserRole,
+} from '@quanlykhupho/shared-types';
+import { validate } from 'class-validator';
+import { plainToInstance } from 'class-transformer';
 import { AppException } from '../core/exceptions/app.exception';
 import { PrismaService } from '../prisma/prisma.service';
 import { RabbitMQService } from '../rabbitmq/rabbitmq.service';
@@ -10,6 +18,7 @@ import { CryptoService } from '../security/crypto.service';
 import { SessionService } from '../auth/session.service';
 import { RedisService } from '../redis/redis.service';
 import { UsersService } from './users.service';
+import { ManagedResidentQueryDto } from './dto/managed-resident-query.dto';
 
 type MockAccount = Account & {
   neighborhood: Neighborhood | null;
@@ -79,6 +88,7 @@ describe('UsersService', () => {
 
     smsPublisherService = new SmsPublisherService(rabbitmqService, cryptoService);
 
+    const now = Date.now();
     mockAccounts = [
       {
         id: 'res-1',
@@ -92,8 +102,8 @@ describe('UsersService', () => {
         neighborhood: mockNeighborhoods[0] ?? null,
         rejectionReason: null,
         lockReason: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: new Date(now - 60000),
+        updatedAt: new Date(now - 60000),
       },
       {
         id: 'res-2',
@@ -107,8 +117,83 @@ describe('UsersService', () => {
         neighborhood: mockNeighborhoods[1] ?? null,
         rejectionReason: null,
         lockReason: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: new Date(now - 50000),
+        updatedAt: new Date(now - 50000),
+      },
+      {
+        id: 'res-active-kp1',
+        phoneEncrypted: cryptoService.encrypt('+84933333331'),
+        phoneHash: cryptoService.hashPhone('+84933333331'),
+        fullName: 'Lê Văn Active KP1',
+        role: Role.resident,
+        status: DbAccountStatus.active,
+        address: '789 KP1',
+        neighborhoodId: 'neigh-1',
+        neighborhood: mockNeighborhoods[0] ?? null,
+        rejectionReason: null,
+        lockReason: null,
+        createdAt: new Date(now - 40000),
+        updatedAt: new Date(now - 40000),
+      },
+      {
+        id: 'res-locked-kp1',
+        phoneEncrypted: cryptoService.encrypt('+84933333332'),
+        phoneHash: cryptoService.hashPhone('+84933333332'),
+        fullName: 'Phạm Thị Locked KP1',
+        role: Role.resident,
+        status: DbAccountStatus.locked,
+        address: '101 KP1',
+        neighborhoodId: 'neigh-1',
+        neighborhood: mockNeighborhoods[0] ?? null,
+        rejectionReason: null,
+        lockReason: 'Chuyển đi',
+        createdAt: new Date(now - 30000),
+        updatedAt: new Date(now - 30000),
+      },
+      {
+        id: 'res-active-kp2',
+        phoneEncrypted: cryptoService.encrypt('+84944444441'),
+        phoneHash: cryptoService.hashPhone('+84944444441'),
+        fullName: 'Hoàng Văn Active KP2',
+        role: Role.resident,
+        status: DbAccountStatus.active,
+        address: '202 KP2',
+        neighborhoodId: 'neigh-2',
+        neighborhood: mockNeighborhoods[1] ?? null,
+        rejectionReason: null,
+        lockReason: null,
+        createdAt: new Date(now - 20000),
+        updatedAt: new Date(now - 20000),
+      },
+      {
+        id: 'res-locked-kp2',
+        phoneEncrypted: cryptoService.encrypt('+84944444442'),
+        phoneHash: cryptoService.hashPhone('+84944444442'),
+        fullName: 'Vũ Thị Locked KP2',
+        role: Role.resident,
+        status: DbAccountStatus.locked,
+        address: '303 KP2',
+        neighborhoodId: 'neigh-2',
+        neighborhood: mockNeighborhoods[1] ?? null,
+        rejectionReason: null,
+        lockReason: 'Vi phạm quy định',
+        createdAt: new Date(now - 10000),
+        updatedAt: new Date(now - 10000),
+      },
+      {
+        id: 'res-rejected-kp1',
+        phoneEncrypted: cryptoService.encrypt('+84955555551'),
+        phoneHash: cryptoService.hashPhone('+84955555551'),
+        fullName: 'Đỗ Văn Rejected KP1',
+        role: Role.resident,
+        status: DbAccountStatus.rejected,
+        address: '404 KP1',
+        neighborhoodId: 'neigh-1',
+        neighborhood: mockNeighborhoods[0] ?? null,
+        rejectionReason: 'Thông tin không chính xác',
+        lockReason: null,
+        createdAt: new Date(now - 5000),
+        updatedAt: new Date(now - 5000),
       },
     ];
 
@@ -117,14 +202,43 @@ describe('UsersService', () => {
         fn: (tx: Prisma.TransactionClient) => Promise<R>,
       ): Promise<R> => fn(prisma as unknown as Prisma.TransactionClient),
       account: {
-        findMany: async ({ where }: { where?: Prisma.AccountWhereInput }) => {
-          return mockAccounts.filter((acc) => {
+        findMany: async ({
+          where,
+          orderBy,
+        }: {
+          where?: Prisma.AccountWhereInput;
+          orderBy?:
+            | Prisma.AccountOrderByWithRelationInput
+            | Prisma.AccountOrderByWithRelationInput[];
+        }) => {
+          const filtered = mockAccounts.filter((acc) => {
             if (where?.role && acc.role !== where.role) return false;
-            if (where?.status && acc.status !== where.status) return false;
+            if (where?.status) {
+              if (
+                typeof where.status === 'object' &&
+                where.status !== null &&
+                'in' in where.status &&
+                Array.isArray(where.status.in)
+              ) {
+                if (!where.status.in.includes(acc.status)) return false;
+              } else if (acc.status !== where.status) {
+                return false;
+              }
+            }
             if (where?.neighborhoodId && acc.neighborhoodId !== where.neighborhoodId)
               return false;
             return true;
           });
+
+          if (orderBy) {
+            return [...filtered].sort((a, b) => {
+              const timeDiff = b.createdAt.getTime() - a.createdAt.getTime();
+              if (timeDiff !== 0) return timeDiff;
+              return a.id.localeCompare(b.id);
+            });
+          }
+
+          return filtered;
         },
         findUnique: async ({ where }: { where: Prisma.AccountWhereUniqueInput }) => {
           if (where.id) return mockAccounts.find((a) => a.id === where.id) || null;
@@ -491,6 +605,237 @@ describe('UsersService', () => {
 
       expect(attempts).toBe(2);
       txSpy.mockRestore();
+    });
+  });
+
+  describe('Managed Residents Listing (getManagedResidents)', () => {
+    const leaderKP1: UserDto = {
+      id: 'leader-1',
+      maskedPhone: '098***1111',
+      fullName: 'Trưởng Khu Phố 1',
+      role: UserRole.LEADER,
+      status: AccountStatus.ACTIVE,
+      neighborhoodId: 'neigh-1',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const leaderUnassigned: UserDto = {
+      id: 'leader-unassigned',
+      maskedPhone: '098***2222',
+      fullName: 'Trưởng Chưa Gán KP',
+      role: UserRole.LEADER,
+      status: AccountStatus.ACTIVE,
+      neighborhoodId: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const officer: UserDto = {
+      id: 'officer-1',
+      maskedPhone: '090***9999',
+      fullName: 'Cán Bộ Phường',
+      role: UserRole.OFFICER,
+      status: AccountStatus.ACTIVE,
+      neighborhoodId: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const residentUser: UserDto = {
+      id: 'resident-user',
+      maskedPhone: '091***3333',
+      fullName: 'Cư Dân Thường',
+      role: UserRole.RESIDENT,
+      status: AccountStatus.ACTIVE,
+      neighborhoodId: 'neigh-1',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    it('should list only active and locked residents in leader assigned neighborhood', async () => {
+      const residents = await usersService.getManagedResidents(leaderKP1);
+
+      expect(residents.length).toBe(2);
+      expect(residents.map((r) => r.id)).toEqual(
+        expect.arrayContaining(['res-active-kp1', 'res-locked-kp1']),
+      );
+      residents.forEach((r) => {
+        expect(r.neighborhoodId).toBe('neigh-1');
+        expect([AccountStatus.ACTIVE, AccountStatus.LOCKED]).toContain(r.status);
+      });
+      expect(residents.some((r) => r.status === AccountStatus.PENDING)).toBe(false);
+      expect(residents.some((r) => r.status === AccountStatus.REJECTED)).toBe(false);
+      expect(residents.some((r) => r.neighborhoodId === 'neigh-2')).toBe(false);
+    });
+
+    it('should strictly enforce leader neighborhood scope even if query attempts cross-neighborhood parameter', async () => {
+      const residents = await usersService.getManagedResidents(leaderKP1, {
+        neighborhoodId: 'neigh-2',
+      });
+
+      expect(residents.length).toBe(2);
+      residents.forEach((r) => {
+        expect(r.neighborhoodId).toBe('neigh-1');
+      });
+      expect(residents.some((r) => r.id === 'res-active-kp2')).toBe(false);
+    });
+
+    it('should throw FORBIDDEN if leader is missing neighborhood assignment', async () => {
+      await expect(
+        usersService.getManagedResidents(leaderUnassigned),
+      ).rejects.toMatchObject({
+        errorCode: ErrorCode.FORBIDDEN,
+      });
+    });
+
+    it('should filter active-only residents when status=active is requested', async () => {
+      const residents = await usersService.getManagedResidents(leaderKP1, {
+        status: AccountStatus.ACTIVE,
+      });
+
+      expect(residents.length).toBe(1);
+      expect(residents[0]?.id).toBe('res-active-kp1');
+      expect(residents[0]?.status).toBe(AccountStatus.ACTIVE);
+    });
+
+    it('should filter locked-only residents when status=locked is requested', async () => {
+      const residents = await usersService.getManagedResidents(leaderKP1, {
+        status: AccountStatus.LOCKED,
+      });
+
+      expect(residents.length).toBe(1);
+      expect(residents[0]?.id).toBe('res-locked-kp1');
+      expect(residents[0]?.status).toBe(AccountStatus.LOCKED);
+      expect(residents[0]?.lockReason).toBe('Chuyển đi');
+    });
+
+    it('should reject invalid status filter at service layer', async () => {
+      await expect(
+        usersService.getManagedResidents(leaderKP1, {
+          status: AccountStatus.PENDING as unknown as ManagedResidentStatus,
+        }),
+      ).rejects.toMatchObject({
+        errorCode: ErrorCode.VALIDATION_ERROR,
+      });
+    });
+
+    it('should allow officer to list active and locked residents across all neighborhoods (ward-wide)', async () => {
+      const residents = await usersService.getManagedResidents(officer);
+
+      expect(residents.length).toBe(4);
+      expect(residents.map((r) => r.id)).toEqual(
+        expect.arrayContaining([
+          'res-active-kp1',
+          'res-locked-kp1',
+          'res-active-kp2',
+          'res-locked-kp2',
+        ]),
+      );
+      expect(residents.some((r) => r.neighborhoodId === 'neigh-1')).toBe(true);
+      expect(residents.some((r) => r.neighborhoodId === 'neigh-2')).toBe(true);
+    });
+
+    it('should allow officer to optionally filter by neighborhoodId', async () => {
+      const kp2Residents = await usersService.getManagedResidents(officer, {
+        neighborhoodId: 'neigh-2',
+      });
+
+      expect(kp2Residents.length).toBe(2);
+      expect(kp2Residents.map((r) => r.id)).toEqual(
+        expect.arrayContaining(['res-active-kp2', 'res-locked-kp2']),
+      );
+      kp2Residents.forEach((r) => {
+        expect(r.neighborhoodId).toBe('neigh-2');
+      });
+    });
+
+    it('should allow officer to filter by status and neighborhoodId simultaneously', async () => {
+      const lockedKp2 = await usersService.getManagedResidents(officer, {
+        neighborhoodId: 'neigh-2',
+        status: AccountStatus.LOCKED,
+      });
+
+      expect(lockedKp2.length).toBe(1);
+      expect(lockedKp2[0]?.id).toBe('res-locked-kp2');
+      expect(lockedKp2[0]?.status).toBe(AccountStatus.LOCKED);
+    });
+
+    it('should reject resident role from calling getManagedResidents (FORBIDDEN)', async () => {
+      await expect(
+        usersService.getManagedResidents(residentUser),
+      ).rejects.toMatchObject({
+        errorCode: ErrorCode.FORBIDDEN,
+      });
+    });
+
+    it('should return masked phone numbers and deterministic ordering (createdAt desc, id asc)', async () => {
+      const residents = await usersService.getManagedResidents(officer);
+
+      residents.forEach((r) => {
+        expect(r.maskedPhone).toMatch(/^\+?84\d{2}\*{3}\d{3,4}$|^\d{3}\*{3}\d{3,4}$/);
+      });
+
+      for (let i = 0; i < residents.length - 1; i++) {
+        const curr = new Date(residents[i]!.createdAt).getTime();
+        const next = new Date(residents[i + 1]!.createdAt).getTime();
+        expect(curr).toBeGreaterThanOrEqual(next);
+      }
+    });
+  });
+
+  describe('ManagedResidentQueryDto Validation', () => {
+    it('should pass validation for an empty query', async () => {
+      const dto = plainToInstance(ManagedResidentQueryDto, {});
+      const errors = await validate(dto);
+      expect(errors.length).toBe(0);
+    });
+
+    it('should pass validation with valid active/locked status', async () => {
+      const activeDto = plainToInstance(ManagedResidentQueryDto, {
+        status: AccountStatus.ACTIVE,
+      });
+      const activeErrors = await validate(activeDto);
+      expect(activeErrors.length).toBe(0);
+
+      const lockedDto = plainToInstance(ManagedResidentQueryDto, {
+        status: AccountStatus.LOCKED,
+      });
+      const lockedErrors = await validate(lockedDto);
+      expect(lockedErrors.length).toBe(0);
+    });
+
+    it('should pass validation with valid UUID neighborhoodId', async () => {
+      const dto = plainToInstance(ManagedResidentQueryDto, {
+        neighborhoodId: '123e4567-e89b-42d3-a456-426614174000',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBe(0);
+    });
+
+    it('should reject pending or rejected status values', async () => {
+      const pendingDto = plainToInstance(ManagedResidentQueryDto, {
+        status: AccountStatus.PENDING,
+      });
+      const pendingErrors = await validate(pendingDto);
+      expect(pendingErrors.length).toBeGreaterThan(0);
+      expect(pendingErrors[0]?.property).toBe('status');
+
+      const rejectedDto = plainToInstance(ManagedResidentQueryDto, {
+        status: AccountStatus.REJECTED,
+      });
+      const rejectedErrors = await validate(rejectedDto);
+      expect(rejectedErrors.length).toBeGreaterThan(0);
+      expect(rejectedErrors[0]?.property).toBe('status');
+    });
+
+    it('should reject invalid UUID for neighborhoodId', async () => {
+      const dto = plainToInstance(ManagedResidentQueryDto, {
+        neighborhoodId: 'invalid-not-a-uuid',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0]?.property).toBe('neighborhoodId');
     });
   });
 });

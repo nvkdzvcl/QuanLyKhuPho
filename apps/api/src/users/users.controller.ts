@@ -18,6 +18,7 @@ import { CsrfGuard } from '../security/guards/csrf.guard';
 import { RolesGuard } from '../security/guards/roles.guard';
 import { CreateLeaderRequestDto } from './dto/create-leader.dto';
 import { LockResidentRequestDto } from './dto/lock-resident.dto';
+import { ManagedResidentQueryDto } from './dto/managed-resident-query.dto';
 import { RejectResidentRequestDto } from './dto/reject-resident.dto';
 import { UsersService } from './users.service';
 
@@ -34,6 +35,16 @@ export class UsersController {
     @Query('neighborhoodId') neighborhoodId?: string,
   ): Promise<UserDto[]> {
     return this.usersService.getPendingResidents(currentUser, neighborhoodId);
+  }
+
+  @Get('residents')
+  @Roles(UserRole.LEADER, UserRole.OFFICER)
+  @HttpCode(HttpStatus.OK)
+  async getManagedResidents(
+    @CurrentUser() currentUser: UserDto,
+    @Query() query: ManagedResidentQueryDto,
+  ): Promise<UserDto[]> {
+    return this.usersService.getManagedResidents(currentUser, query);
   }
 
   @Patch(':id/approve')
