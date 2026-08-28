@@ -10,10 +10,10 @@ import { AnnouncementScope, PetitionCategory } from '@quanlykhupho/shared-types'
  * 1. Officer authenticates via dev OTP and creates a Leader for KP-01.
  * 2. Resident completes OTP registration for KP-01 and sees pending status.
  * 3. Leader authenticates via dev OTP and approves the pending resident, then creates KP-01 announcement.
- * 4. Resident logs in via dev OTP, proves in-app notification fallback, opens announcement and comments, and submits a new petition.
- * 5. Leader receives the petition, transitions to PROCESSING, and RESOLVES it; then opens announcement, moderates resident comment, edits and removes announcement.
- * 6. Officer inspects ward-wide petition list, verifies resolved petition & history; then creates a ward-wide announcement.
- * 7. Leader locks resident account, verifies blocked login, unlocks account, and resident logs in again, verifying ward announcement in notification fallback and feed.
+ * 4. Resident logs in via dev OTP, proves in-app notification fallback, comments on announcement, submits primary petition with real in-memory image evidence, and creates and cancels a second reviewing petition with confirmation and history evidence.
+ * 5. Leader navigates to Petitions, exercises admin status/category/date filters, opens petition with evidence, advances to PROCESSING, and RESOLVES it with a note; then moderates comment, edits and removes announcement.
+ * 6. Officer inspects ward-wide petition list, exercises status filters, verifies resolved petition, evidence & history; then creates a ward-wide announcement.
+ * 7. Leader locks resident account, verifies blocked login, unlocks account, and resident logs in again, verifying durable petition status update and ward announcement in notification fallback and feed, followed by final petition status, note, and chronological timeline.
  */
 
 const OFFICER = {
@@ -41,6 +41,19 @@ const PETITION = {
   resolveNote:
     'Đội trật tự đô thị và kỹ thuật khu phố đã tiến hành thay mới nắp cống chịu lực vào sáng nay.',
 };
+
+const CANCELLED_PETITION = {
+  title: 'Kiến nghị kiểm tra cành cây xanh che khuất biển báo E2E',
+  description:
+    'Cành cây xanh trước số nhà 125 đường số 1 che khuất biển báo giao thông ngã ba. Gia đình đã chủ động cắt tỉa an toàn nên xin hủy kiến nghị.',
+  cancelReason: 'Hộ dân đã tự cắt tỉa cành cây an toàn',
+};
+
+// 1x1 valid PNG in-memory buffer for real file upload assertion
+const TINY_PNG_BUFFER = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64',
+);
 
 const KP1_ANNOUNCEMENT = {
   title: 'Thông báo tổng vệ sinh môi trường Khu phố 1 E2E',
@@ -488,7 +501,7 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
         createPetitionDialog.getByRole('heading', { name: 'Gửi Kiến nghị & Phản ánh Mới' }),
       ).toBeVisible();
 
-      // Fill petition details
+      // Fill primary petition details with real in-memory image upload
       await createPetitionDialog
         .getByLabel('Tiêu đề kiến nghị / phản ánh')
         .fill(PETITION.title);
@@ -499,21 +512,129 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
         .getByLabel(/Nội dung chi tiết kiến nghị/i)
         .fill(PETITION.description);
 
-      // Submit petition
+      // Attach in-memory PNG evidence through file input and verify client preview
+      await createPetitionDialog
+        .locator('input[type="file"]')
+        .setInputFiles({
+          name: 'evidence.png',
+          mimeType: 'image/png',
+          buffer: TINY_PNG_BUFFER,
+        });
+      await expect(
+        createPetitionDialog.getByText('evidence.png'),
+      ).toBeVisible();
+
+      // Submit primary petition
       const submitPetitionBtn = createPetitionDialog.getByRole('button', {
         name: 'Gửi kiến nghị',
       });
       await expect(submitPetitionBtn).toBeEnabled();
       await submitPetitionBtn.click();
 
-      // Assert success alert and presence in resident petition list
+      // Assert success alert and presence with evidence representation in resident petition list
       await expect(
         page.getByText('Đã gửi kiến nghị mới thành công!'),
       ).toBeVisible({ timeout: 10_000 });
+      const primaryPetitionCard = page
+        .locator('div')
+        .filter({ has: page.getByRole('heading', { name: PETITION.title }) })
+        .first();
+      await expect(primaryPetitionCard).toBeVisible({ timeout: 10_000 });
+      await expect(primaryPetitionCard.getByText('Chờ tiếp nhận').first()).toBeVisible();
+      await expect(primaryPetitionCard.getByText('1 ảnh')).toBeVisible();
+
+      // Create a second petition to exercise reviewing-state resident cancellation
+      const createSecondBtn = page.getByRole('button', {
+        name: '+ Gửi kiến nghị mới',
+      });
+      await expect(createSecondBtn).toBeVisible();
+      await createSecondBtn.click();
+
       await expect(
-        page.getByRole('heading', { name: PETITION.title }),
+        createPetitionDialog.getByRole('heading', { name: 'Gửi Kiến nghị & Phản ánh Mới' }),
+      ).toBeVisible();
+      await createPetitionDialog
+        .getByLabel('Tiêu đề kiến nghị / phản ánh')
+        .fill(CANCELLED_PETITION.title);
+      await createPetitionDialog
+        .getByLabel('Danh mục phản ánh')
+        .selectOption(PetitionCategory.SANITATION);
+      await createPetitionDialog
+        .getByLabel(/Nội dung chi tiết kiến nghị/i)
+        .fill(CANCELLED_PETITION.description);
+
+      const submitSecondBtn = createPetitionDialog.getByRole('button', {
+        name: 'Gửi kiến nghị',
+      });
+      await expect(submitSecondBtn).toBeEnabled();
+      await submitSecondBtn.click();
+
+      await expect(
+        page.getByText('Đã gửi kiến nghị mới thành công!'),
       ).toBeVisible({ timeout: 10_000 });
-      await expect(page.getByText('Chờ tiếp nhận').first()).toBeVisible();
+
+      // Open second petition detail and cancel through the UI
+      const secondHeading = page.getByRole('heading', {
+        name: CANCELLED_PETITION.title,
+      });
+      await expect(secondHeading).toBeVisible({ timeout: 10_000 });
+      await secondHeading.click();
+
+      const secondDetailModal = page.getByRole('dialog');
+      await expect(
+        secondDetailModal.getByRole('heading', {
+          name: 'Chi tiết Kiến nghị & Phản ánh',
+        }),
+      ).toBeVisible();
+      await expect(secondDetailModal.getByText(CANCELLED_PETITION.title)).toBeVisible();
+      await expect(secondDetailModal.getByText('Chờ tiếp nhận').first()).toBeVisible();
+
+      // Initiate cancellation
+      const cancelPetitionBtn = secondDetailModal.getByRole('button', {
+        name: 'Hủy kiến nghị này',
+      });
+      await expect(cancelPetitionBtn).toBeVisible();
+      await cancelPetitionBtn.click();
+
+      // Fill cancellation confirmation dialog
+      const cancelConfirmDialog = page.getByRole('dialog').filter({
+        has: page.getByRole('heading', { name: 'Xác nhận hủy kiến nghị' }),
+      });
+      await expect(cancelConfirmDialog).toBeVisible({ timeout: 10_000 });
+      await cancelConfirmDialog
+        .getByLabel(/Lý do hủy/i)
+        .fill(CANCELLED_PETITION.cancelReason);
+
+      const confirmCancelBtn = cancelConfirmDialog.getByRole('button', {
+        name: 'Xác nhận hủy kiến nghị',
+      });
+      await expect(confirmCancelBtn).toBeEnabled();
+      await confirmCancelBtn.click();
+
+      await expect(
+        page.getByText('Đã hủy kiến nghị thành công.'),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // Assert cancelled state and history evidence in detail modal
+      await expect(
+        secondDetailModal.getByText('Đã hủy').first(),
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(
+        secondDetailModal.getByText(CANCELLED_PETITION.cancelReason),
+      ).toBeVisible();
+
+      const closeSecondModalBtn = secondDetailModal.getByRole('button', {
+        name: 'Đóng hộp thoại',
+      });
+      await expect(closeSecondModalBtn).toBeVisible();
+      await closeSecondModalBtn.click();
+
+      // Assert cancelled badge reflected on list card
+      const secondCard = page
+        .locator('div')
+        .filter({ has: secondHeading })
+        .first();
+      await expect(secondCard.getByText('Đã hủy').first()).toBeVisible();
 
       // Logout Resident
       await logoutUser(page, RESIDENT.fullName);
@@ -537,12 +658,85 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
         page.getByRole('heading', { name: 'Quản lý Kiến nghị Phản ánh Khu phố' }),
       ).toBeVisible();
 
+      // Exercise admin status filters
+      const reviewingFilterBtn = page.getByRole('button', {
+        name: 'Chờ tiếp nhận',
+        exact: true,
+      });
+      await reviewingFilterBtn.click();
+      await expect(
+        page.getByRole('heading', { name: PETITION.title }),
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(
+        page.getByRole('heading', { name: CANCELLED_PETITION.title }),
+      ).not.toBeVisible();
+
+      const cancelledFilterBtn = page.getByRole('button', {
+        name: 'Đã hủy',
+        exact: true,
+      });
+      await cancelledFilterBtn.click();
+      await expect(
+        page.getByRole('heading', { name: CANCELLED_PETITION.title }),
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(
+        page.getByRole('heading', { name: PETITION.title }),
+      ).not.toBeVisible();
+
+      const allStatusFilterBtn = page.getByRole('button', {
+        name: 'Tất cả',
+        exact: true,
+      });
+      await allStatusFilterBtn.click();
+      await expect(
+        page.getByRole('heading', { name: PETITION.title }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: CANCELLED_PETITION.title }),
+      ).toBeVisible();
+
+      // Exercise admin category filter
+      const categoryFilterSelect = page.getByLabel('Lọc theo danh mục');
+      await categoryFilterSelect.selectOption(PetitionCategory.SANITATION);
+      await expect(
+        page.getByRole('heading', { name: CANCELLED_PETITION.title }),
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(
+        page.getByRole('heading', { name: PETITION.title }),
+      ).not.toBeVisible();
+
+      await categoryFilterSelect.selectOption(PetitionCategory.INFRASTRUCTURE);
+      await expect(
+        page.getByRole('heading', { name: PETITION.title }),
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(
+        page.getByRole('heading', { name: CANCELLED_PETITION.title }),
+      ).not.toBeVisible();
+
+      await categoryFilterSelect.selectOption('');
+      await expect(
+        page.getByRole('heading', { name: PETITION.title }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: CANCELLED_PETITION.title }),
+      ).toBeVisible();
+
+      // Exercise admin date filter and clear
+      const todayStr = new Date().toISOString().slice(0, 10);
+      await page.getByLabel('Từ ngày').fill(todayStr);
+      await page.getByLabel('Đến ngày').fill(todayStr);
+      await expect(
+        page.getByRole('heading', { name: PETITION.title }),
+      ).toBeVisible({ timeout: 10_000 });
+      await page.getByLabel('Từ ngày').fill('');
+      await page.getByLabel('Đến ngày').fill('');
+
       // Locate and click on the resident's petition
       const petitionCard = page.getByRole('heading', { name: PETITION.title });
       await expect(petitionCard).toBeVisible({ timeout: 10_000 });
       await petitionCard.click();
 
-      // Verify detail modal
+      // Verify detail modal and evidence representation
       const petitionDetailModal = page.getByRole('dialog');
       await expect(
         petitionDetailModal.getByRole('heading', { name: 'Chi tiết Kiến nghị & Phản ánh' }),
@@ -551,6 +745,10 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
       await expect(
         petitionDetailModal.getByText(new RegExp(`Người gửi:\\s*${RESIDENT.fullName}`, 'i')),
       ).toBeVisible();
+      await expect(
+        petitionDetailModal.getByRole('heading', { name: /Hình ảnh minh chứng/i }),
+      ).toBeVisible();
+      await expect(petitionDetailModal.getByText('evidence.png')).toBeVisible();
 
       // Advance status to PROCESSING
       const startProcessingBtn = petitionDetailModal.getByRole('button', {
@@ -778,7 +976,7 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
         page.getByRole('heading', { name: 'Quản lý & Giám sát Kiến nghị Toàn phường' }),
       ).toBeVisible();
 
-      // Assert petition is visible in ward scope
+      // Assert petition is visible in ward scope with evidence count
       const wardPetition = page.getByRole('heading', { name: PETITION.title });
       await expect(wardPetition).toBeVisible({ timeout: 10_000 });
       const wardPetitionCard = page.getByRole('button').filter({ has: wardPetition });
@@ -786,6 +984,22 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
       await expect(
         wardPetitionCard.getByText(RESIDENT.fullName, { exact: true }),
       ).toBeVisible();
+      await expect(wardPetitionCard.getByText('1 ảnh')).toBeVisible();
+
+      // Exercise officer status filtering
+      const resolvedFilterBtn = page.getByRole('button', {
+        name: 'Đã giải quyết',
+        exact: true,
+      });
+      await resolvedFilterBtn.click();
+      await expect(wardPetition).toBeVisible({ timeout: 10_000 });
+
+      const allFilterBtn = page.getByRole('button', {
+        name: 'Tất cả',
+        exact: true,
+      });
+      await allFilterBtn.click();
+      await expect(wardPetition).toBeVisible();
 
       // Open detail modal in officer view
       await wardPetitionCard.click();
@@ -801,6 +1015,10 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
         ),
       ).toBeVisible();
       await expect(officerDetailModal.getByText(PETITION.resolveNote)).toBeVisible();
+      await expect(
+        officerDetailModal.getByRole('heading', { name: /Hình ảnh minh chứng/i }),
+      ).toBeVisible();
+      await expect(officerDetailModal.getByText('evidence.png')).toBeVisible();
 
       // Close detail modal
       const closeModalBtn = officerDetailModal.getByRole('button', {
@@ -1014,13 +1232,27 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
       await expect(page.getByText(RESIDENT.fullName).first()).toBeVisible({ timeout: 10_000 });
       await expect(page.getByText(/Cư dân · Khu phố 1/i).first()).toBeVisible();
 
-      // Proves ward-wide announcement appears in in-app notification fallback
+      // Proves ward-wide announcement and petition status notifications appear in in-app notification fallback
       const bellBtn = page.getByRole('button', {
         name: 'Thông báo trong ứng dụng',
         exact: true,
       });
       await expect(bellBtn).toBeVisible({ timeout: 10_000 });
       await bellBtn.click();
+
+      // Verify durable in-app petition status notification in bell drawer
+      const petitionResolvedNotif = page.getByText(
+        /Cập nhật trạng thái kiến nghị:\s*Đã giải quyết/i,
+      ).first();
+      await expect(petitionResolvedNotif).toBeVisible({ timeout: 10_000 });
+      await expect(
+        page.getByText(
+          new RegExp(
+            `Kiến nghị "${PETITION.title}" của bạn đã chuyển sang trạng thái "Đã giải quyết"`,
+            'i',
+          ),
+        ).first(),
+      ).toBeVisible();
 
       const wardNotifItem = page.getByText(
         new RegExp(`Thông báo mới \\[Toàn phường\\]:\\s*${WARD_ANNOUNCEMENT.title}`, 'i'),
@@ -1068,6 +1300,72 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
         .first();
       await expect(residentWardCard.getByText('Toàn phường').first()).toBeVisible();
       await expect(residentWardCard.getByText(WARD_ANNOUNCEMENT.content)).toBeVisible();
+
+      // Navigate to Resident Petitions section to prove final status, response, and chronological timeline
+      const residentPetitionsNavBtn = page
+        .getByRole('navigation', { name: 'Điều hướng Cư dân' })
+        .getByRole('button', {
+          name: 'Kiến nghị của tôi',
+          exact: true,
+        });
+      await expect(residentPetitionsNavBtn).toBeVisible({ timeout: 10_000 });
+      await residentPetitionsNavBtn.click();
+
+      await expect(
+        page.getByRole('heading', { name: 'Kiến nghị của tôi', level: 3 }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      const residentPetitionHeading = page.getByRole('heading', {
+        name: PETITION.title,
+      });
+      await expect(residentPetitionHeading).toBeVisible({ timeout: 10_000 });
+
+      const residentPetitionCard = page
+        .locator('div')
+        .filter({ has: residentPetitionHeading })
+        .first();
+      await expect(residentPetitionCard.getByText('Đã giải quyết').first()).toBeVisible();
+      await expect(residentPetitionCard.getByText('1 ảnh')).toBeVisible();
+      await expect(
+        residentPetitionCard.getByText(
+          new RegExp(`Ghi chú:.*${PETITION.resolveNote}`, 'i'),
+        ),
+      ).toBeVisible();
+
+      // Open detail modal in resident view
+      await residentPetitionHeading.click();
+
+      const residentDetailModal = page.getByRole('dialog');
+      await expect(
+        residentDetailModal.getByRole('heading', {
+          name: 'Chi tiết Kiến nghị & Phản ánh',
+        }),
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(residentDetailModal.getByText(PETITION.title)).toBeVisible();
+      await expect(residentDetailModal.getByText('Đã giải quyết').first()).toBeVisible();
+      await expect(
+        residentDetailModal.getByRole('heading', { name: /Hình ảnh minh chứng/i }),
+      ).toBeVisible();
+      await expect(residentDetailModal.getByText('evidence.png')).toBeVisible();
+
+      // Assert chronological status history timeline steps
+      await expect(
+        residentDetailModal.getByRole('heading', {
+          name: 'Tiến trình Xử lý & Lịch sử Trạng thái',
+        }),
+      ).toBeVisible();
+      await expect(residentDetailModal.getByText('Tạo kiến nghị mới')).toBeVisible();
+      await expect(residentDetailModal.getByText('Tiếp nhận xử lý kiến nghị')).toBeVisible();
+      await expect(residentDetailModal.getByText(PETITION.resolveNote)).toBeVisible();
+      await expect(residentDetailModal.getByText(LEADER.fullName).first()).toBeVisible();
+
+      // Close detail modal
+      const closeResDetailBtn = residentDetailModal.getByRole('button', {
+        name: 'Đóng hộp thoại',
+        exact: true,
+      });
+      await expect(closeResDetailBtn).toBeVisible();
+      await closeResDetailBtn.click();
 
       await logoutUser(page, RESIDENT.fullName);
     });

@@ -15,6 +15,7 @@ import {
   Prisma,
   Role,
   AccountStatus as DbAccountStatus,
+  PetitionCategory as DbPetitionCategory,
   PetitionStatus as DbPetitionStatus,
   NotificationType as DbNotificationType,
 } from '@prisma/client';
@@ -37,6 +38,59 @@ type DbMockPetition = Petition & {
   evidence: PetitionEvidence[];
   histories: (PetitionHistory & { changedBy: Account })[];
 };
+
+type PetitionWhereClause = {
+  authorId?: string;
+  neighborhoodId?: string | null;
+  status?: DbPetitionStatus;
+  category?: DbPetitionCategory;
+  createdAt?: { gte?: Date; lte?: Date };
+  AND?: PetitionWhereClause | PetitionWhereClause[];
+  OR?: Array<{
+    title?: { contains?: string; mode?: string };
+    description?: { contains?: string; mode?: string };
+  }>;
+};
+
+function matchesPetitionWhere(
+  petition: DbMockPetition,
+  where?: PetitionWhereClause,
+): boolean {
+  if (!where) return true;
+
+  if (where.AND) {
+    const andConditions = Array.isArray(where.AND) ? where.AND : [where.AND];
+    if (!andConditions.every((condition) => matchesPetitionWhere(petition, condition))) {
+      return false;
+    }
+  }
+
+  if (where.OR) {
+    const orMatches = where.OR.some((orCond) => {
+      const searchTitle = orCond.title?.contains?.toLowerCase();
+      if (searchTitle && petition.title.toLowerCase().includes(searchTitle)) {
+        return true;
+      }
+      const searchDesc = orCond.description?.contains?.toLowerCase();
+      if (searchDesc && petition.description.toLowerCase().includes(searchDesc)) {
+        return true;
+      }
+      return false;
+    });
+    if (!orMatches) return false;
+  }
+
+  if (where.authorId && petition.authorId !== where.authorId) return false;
+  if (where.neighborhoodId !== undefined && petition.neighborhoodId !== where.neighborhoodId) return false;
+  if (where.status && petition.status !== where.status) return false;
+  if (where.category && petition.category !== where.category) return false;
+  if (where.createdAt) {
+    if (where.createdAt.gte && petition.createdAt < where.createdAt.gte) return false;
+    if (where.createdAt.lte && petition.createdAt > where.createdAt.lte) return false;
+  }
+
+  return true;
+}
 
 describe('Petitions Workflow (e2e)', () => {
   let app: INestApplication;
@@ -128,56 +182,33 @@ describe('Petitions Workflow (e2e)', () => {
         },
       },
       petition: {
-        findMany: async ({ where, skip, take }: { where?: Prisma.PetitionWhereInput; skip?: number; take?: number }) => {
-          let list = [...dbPetitions];
-          if (where?.AND && Array.isArray(where.AND)) {
-            for (const cond of where.AND) {
-              if (cond.authorId) {
-                list = list.filter((p) => p.authorId === cond.authorId);
-              }
-              if (cond.neighborhoodId) {
-                list = list.filter((p) => p.neighborhoodId === cond.neighborhoodId);
-              }
-              if (cond.status) {
-                list = list.filter((p) => p.status === cond.status);
-              }
-              if (cond.category) {
-                list = list.filter((p) => p.category === cond.category);
-              }
-            }
-          }
-          if (where?.authorId) {
-            list = list.filter((p) => p.authorId === where.authorId);
-          }
-          if (where?.neighborhoodId) {
-            list = list.filter((p) => p.neighborhoodId === where.neighborhoodId);
-          }
-          if (where?.status) {
-            list = list.filter((p) => p.status === where.status);
-          }
-          const s = skip || 0;
-          const t = take || list.length;
-          return list.slice(s, s + t);
+        findMany: async ({
+          where,
+          orderBy,
+          skip = 0,
+          take,
+        }: {
+          where?: Prisma.PetitionWhereInput;
+          orderBy?: Prisma.PetitionOrderByWithRelationInput;
+          skip?: number;
+          take?: number;
+        }) => {
+          const clause = where as PetitionWhereClause | undefined;
+          const list = dbPetitions
+            .filter((p) => matchesPetitionWhere(p, clause))
+            .sort((left, right) =>
+              orderBy?.createdAt === 'desc'
+                ? right.createdAt.getTime() - left.createdAt.getTime()
+                : left.createdAt.getTime() - right.createdAt.getTime(),
+            );
+          return list.slice(skip, take === undefined ? undefined : skip + take);
         },
         findUnique: async ({ where }: { where: Prisma.PetitionWhereUniqueInput }) =>
           dbPetitions.find((p) => p.id === where.id) || null,
-        count: async ({ where }: { where?: Prisma.PetitionWhereInput }) => {
-          let list = [...dbPetitions];
-          if (where?.AND && Array.isArray(where.AND)) {
-            for (const cond of where.AND) {
-              if (cond.authorId) {
-                list = list.filter((p) => p.authorId === cond.authorId);
-              }
-              if (cond.neighborhoodId) {
-                list = list.filter((p) => p.neighborhoodId === cond.neighborhoodId);
-              }
-              if (cond.status) {
-                list = list.filter((p) => p.status === cond.status);
-              }
-            }
-          }
-          return list.length;
-        },
+        count: async ({ where }: { where?: Prisma.PetitionWhereInput }) =>
+          dbPetitions.filter((p) =>
+            matchesPetitionWhere(p, where as PetitionWhereClause | undefined),
+          ).length,
         create: async ({ data }: { data: Prisma.PetitionUncheckedCreateInput }) => {
           const author = dbAccounts.find((a) => a.id === data.authorId)!;
           const neighborhood = dbNeighborhoods.find((n) => n.id === data.neighborhoodId) || null;
@@ -241,7 +272,9 @@ describe('Petitions Workflow (e2e)', () => {
         },
         findFirst: async ({ where }: { where?: Prisma.PetitionEvidenceWhereInput }) =>
           dbEvidences.find(
-            (e) => e.id === where?.id && e.petitionId === where?.petitionId,
+            (e) =>
+              (!where?.id || e.id === where.id) &&
+              (!where?.petitionId || e.petitionId === where.petitionId),
           ) || null,
       },
       petitionHistory: {
@@ -295,6 +328,12 @@ describe('Petitions Workflow (e2e)', () => {
           }
           return { count: data.length };
         },
+        findMany: async ({ where }: { where?: Prisma.NotificationWhereInput }) =>
+          dbNotifications.filter((n) => {
+            if (where?.accountId && n.accountId !== where.accountId) return false;
+            if (where?.referenceId && n.referenceId !== where.referenceId) return false;
+            return true;
+          }),
       },
       pushSubscription: {
         upsert: async () => ({}),
@@ -389,19 +428,44 @@ describe('Petitions Workflow (e2e)', () => {
     });
 
     // Create sessions
-    const s1 = await sessionService.createSession(res1.id, UserRole.RESIDENT, AccountStatus.ACTIVE, dbNeighborhoods[0]?.id ?? null);
+    const s1 = await sessionService.createSession(
+      res1.id,
+      UserRole.RESIDENT,
+      AccountStatus.ACTIVE,
+      dbNeighborhoods[0]?.id ?? null,
+    );
     resident1Cookie = `${SESSION_COOKIE_NAME}=${s1}`;
 
-    const s2 = await sessionService.createSession(res2.id, UserRole.RESIDENT, AccountStatus.ACTIVE, dbNeighborhoods[1]?.id ?? null);
+    const s2 = await sessionService.createSession(
+      res2.id,
+      UserRole.RESIDENT,
+      AccountStatus.ACTIVE,
+      dbNeighborhoods[1]?.id ?? null,
+    );
     resident2Cookie = `${SESSION_COOKIE_NAME}=${s2}`;
 
-    const sl1 = await sessionService.createSession(lead1.id, UserRole.LEADER, AccountStatus.ACTIVE, dbNeighborhoods[0]?.id ?? null);
+    const sl1 = await sessionService.createSession(
+      lead1.id,
+      UserRole.LEADER,
+      AccountStatus.ACTIVE,
+      dbNeighborhoods[0]?.id ?? null,
+    );
     leader1Cookie = `${SESSION_COOKIE_NAME}=${sl1}`;
 
-    const sl2 = await sessionService.createSession(lead2.id, UserRole.LEADER, AccountStatus.ACTIVE, dbNeighborhoods[1]?.id ?? null);
+    const sl2 = await sessionService.createSession(
+      lead2.id,
+      UserRole.LEADER,
+      AccountStatus.ACTIVE,
+      dbNeighborhoods[1]?.id ?? null,
+    );
     leader2Cookie = `${SESSION_COOKIE_NAME}=${sl2}`;
 
-    const so = await sessionService.createSession(off.id, UserRole.OFFICER, AccountStatus.ACTIVE, null);
+    const so = await sessionService.createSession(
+      off.id,
+      UserRole.OFFICER,
+      AccountStatus.ACTIVE,
+      null,
+    );
     officerCookie = `${SESSION_COOKIE_NAME}=${so}`;
   });
 
@@ -410,8 +474,9 @@ describe('Petitions Workflow (e2e)', () => {
   });
 
   let createdPetitionId: string;
+  let createdEvidenceId: string;
 
-  it('Resident 1 should submit a new petition with image evidence successfully', async () => {
+  it('Resident 1 should submit a new petition with image evidence successfully (FR-12)', async () => {
     const jpgBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
     const res = await request(app.getHttpServer())
@@ -432,22 +497,34 @@ describe('Petitions Workflow (e2e)', () => {
     expect(res.body.data.author.maskedPhone).toContain('***');
 
     createdPetitionId = res.body.data.id;
+    createdEvidenceId = res.body.data.evidence[0].id;
+
+    // Verify durable in-app notification created for Leader 1
+    const leader1Notif = dbNotifications.find(
+      (n) => n.referenceId === createdPetitionId,
+    );
+    expect(leader1Notif).toBeDefined();
+    expect(leader1Notif?.title).toContain('Kiến nghị mới trong khu phố');
   });
 
-  it('Resident 1 should see own petition, while Resident 2 cannot see it', async () => {
+  it('Resident 1 should see own petition, while Resident 2 cannot see it (FR-16)', async () => {
     const r1List = await request(app.getHttpServer())
       .get('/api/petitions')
       .set('Cookie', resident1Cookie);
 
     expect(r1List.status).toBe(200);
-    expect(r1List.body.data.items.some((p: { id: string }) => p.id === createdPetitionId)).toBe(true);
+    expect(
+      r1List.body.data.items.some((p: { id: string }) => p.id === createdPetitionId),
+    ).toBe(true);
 
     const r2List = await request(app.getHttpServer())
       .get('/api/petitions')
       .set('Cookie', resident2Cookie);
 
     expect(r2List.status).toBe(200);
-    expect(r2List.body.data.items.some((p: { id: string }) => p.id === createdPetitionId)).toBe(false);
+    expect(
+      r2List.body.data.items.some((p: { id: string }) => p.id === createdPetitionId),
+    ).toBe(false);
 
     const r2Detail = await request(app.getHttpServer())
       .get(`/api/petitions/${createdPetitionId}`)
@@ -456,20 +533,24 @@ describe('Petitions Workflow (e2e)', () => {
     expect(r2Detail.status).toBe(404);
   });
 
-  it('Leader 1 should see petition in neighborhood, Leader 2 cannot see it', async () => {
+  it('Leader 1 should see petition in neighborhood, Leader 2 cannot see it (FR-13)', async () => {
     const l1List = await request(app.getHttpServer())
       .get('/api/petitions')
       .set('Cookie', leader1Cookie);
 
     expect(l1List.status).toBe(200);
-    expect(l1List.body.data.items.some((p: { id: string }) => p.id === createdPetitionId)).toBe(true);
+    expect(
+      l1List.body.data.items.some((p: { id: string }) => p.id === createdPetitionId),
+    ).toBe(true);
 
     const l2List = await request(app.getHttpServer())
       .get('/api/petitions')
       .set('Cookie', leader2Cookie);
 
     expect(l2List.status).toBe(200);
-    expect(l2List.body.data.items.some((p: { id: string }) => p.id === createdPetitionId)).toBe(false);
+    expect(
+      l2List.body.data.items.some((p: { id: string }) => p.id === createdPetitionId),
+    ).toBe(false);
 
     const l2Detail = await request(app.getHttpServer())
       .get(`/api/petitions/${createdPetitionId}`)
@@ -478,7 +559,141 @@ describe('Petitions Workflow (e2e)', () => {
     expect(l2Detail.status).toBe(404);
   });
 
-  it('Leader 1 should transition petition from reviewing to processing', async () => {
+  it('Evidence download endpoint should serve image with inline disposition and enforce role/neighborhood scope (supporting FR-12 through FR-16)', async () => {
+    // 1. Author Resident 1 downloads evidence
+    const r1Download = await request(app.getHttpServer())
+      .get(`/api/petitions/${createdPetitionId}/evidence/${createdEvidenceId}`)
+      .set('Cookie', resident1Cookie);
+
+    expect(r1Download.status).toBe(200);
+    expect(r1Download.headers['content-type']).toBe('image/jpeg');
+    expect(r1Download.headers['content-disposition']).toContain('inline');
+    expect(r1Download.headers['content-disposition']).toContain('drain.jpg');
+
+    // 2. Cross-neighborhood Resident 2 is forbidden (404 NOT FOUND to avoid disclosure)
+    const r2Download = await request(app.getHttpServer())
+      .get(`/api/petitions/${createdPetitionId}/evidence/${createdEvidenceId}`)
+      .set('Cookie', resident2Cookie);
+
+    expect(r2Download.status).toBe(404);
+
+    // 3. Leader 1 (assigned neighborhood) downloads evidence
+    const l1Download = await request(app.getHttpServer())
+      .get(`/api/petitions/${createdPetitionId}/evidence/${createdEvidenceId}`)
+      .set('Cookie', leader1Cookie);
+
+    expect(l1Download.status).toBe(200);
+
+    // 4. Leader 2 (different neighborhood) receives 404
+    const l2Download = await request(app.getHttpServer())
+      .get(`/api/petitions/${createdPetitionId}/evidence/${createdEvidenceId}`)
+      .set('Cookie', leader2Cookie);
+
+    expect(l2Download.status).toBe(404);
+
+    // 5. Officer downloads evidence ward-wide
+    const offDownload = await request(app.getHttpServer())
+      .get(`/api/petitions/${createdPetitionId}/evidence/${createdEvidenceId}`)
+      .set('Cookie', officerCookie);
+
+    expect(offDownload.status).toBe(200);
+
+    // 6. Non-existent evidence ID returns 404
+    const nonExistentEvId = '00000000-0000-4000-0000-000000000000';
+    const nonExistentDownload = await request(app.getHttpServer())
+      .get(`/api/petitions/${createdPetitionId}/evidence/${nonExistentEvId}`)
+      .set('Cookie', resident1Cookie);
+
+    expect(nonExistentDownload.status).toBe(404);
+  });
+
+  it('List query filters, search, and pagination should work accurately across roles (FR-13 & FR-16)', async () => {
+    // 1. Status filter
+    const reviewingList = await request(app.getHttpServer())
+      .get('/api/petitions?status=reviewing')
+      .set('Cookie', resident1Cookie);
+
+    expect(reviewingList.status).toBe(200);
+    expect(reviewingList.body.data.items.length).toBeGreaterThanOrEqual(1);
+
+    const resolvedList = await request(app.getHttpServer())
+      .get('/api/petitions?status=resolved')
+      .set('Cookie', resident1Cookie);
+
+    expect(resolvedList.status).toBe(200);
+    expect(resolvedList.body.data.items.length).toBe(0);
+
+    // 2. Category filter
+    const sanitationList = await request(app.getHttpServer())
+      .get('/api/petitions?category=sanitation')
+      .set('Cookie', resident1Cookie);
+
+    expect(sanitationList.status).toBe(200);
+    expect(sanitationList.body.data.items.length).toBeGreaterThanOrEqual(1);
+
+    const securityList = await request(app.getHttpServer())
+      .get('/api/petitions?category=security')
+      .set('Cookie', resident1Cookie);
+
+    expect(securityList.status).toBe(200);
+    expect(securityList.body.data.items.length).toBe(0);
+
+    // 3. Search query
+    const searchMatch = await request(app.getHttpServer())
+      .get('/api/petitions?search=thoát+nước')
+      .set('Cookie', resident1Cookie);
+
+    expect(searchMatch.status).toBe(200);
+    expect(searchMatch.body.data.items.length).toBeGreaterThanOrEqual(1);
+
+    const searchNoMatch = await request(app.getHttpServer())
+      .get('/api/petitions?search=khongtontai12345')
+      .set('Cookie', resident1Cookie);
+
+    expect(searchNoMatch.status).toBe(200);
+    expect(searchNoMatch.body.data.items.length).toBe(0);
+
+    // 4. Date range query
+    const dateRangeList = await request(app.getHttpServer())
+      .get('/api/petitions?startDate=2026-01-01&endDate=2026-12-31')
+      .set('Cookie', resident1Cookie);
+
+    expect(dateRangeList.status).toBe(200);
+    expect(dateRangeList.body.data.items.length).toBeGreaterThanOrEqual(1);
+
+    // 5. Pagination structure
+    const pageRes = await request(app.getHttpServer())
+      .get('/api/petitions?page=1&limit=1')
+      .set('Cookie', resident1Cookie);
+
+    expect(pageRes.status).toBe(200);
+    expect(pageRes.body.data.page).toBe(1);
+    expect(pageRes.body.data.limit).toBe(1);
+    expect(pageRes.body.data.total).toBeGreaterThanOrEqual(1);
+    expect(pageRes.body.data.totalPages).toBeGreaterThanOrEqual(1);
+    expect(pageRes.body.data.items.length).toBe(1);
+
+    // 6. Officer neighborhood filter vs ward-wide query
+    const offKp1 = await request(app.getHttpServer())
+      .get(`/api/petitions?neighborhoodId=${dbNeighborhoods[0]?.id}`)
+      .set('Cookie', officerCookie);
+
+    expect(offKp1.status).toBe(200);
+    expect(
+      offKp1.body.data.items.some((p: { id: string }) => p.id === createdPetitionId),
+    ).toBe(true);
+
+    const offKp2 = await request(app.getHttpServer())
+      .get(`/api/petitions?neighborhoodId=${dbNeighborhoods[1]?.id}`)
+      .set('Cookie', officerCookie);
+
+    expect(offKp2.status).toBe(200);
+    expect(
+      offKp2.body.data.items.some((p: { id: string }) => p.id === createdPetitionId),
+    ).toBe(false);
+  });
+
+  it('Leader 1 should transition petition from reviewing to processing (FR-14)', async () => {
     const res = await request(app.getHttpServer())
       .patch(`/api/petitions/${createdPetitionId}/status`)
       .set('Cookie', leader1Cookie)
@@ -492,9 +707,17 @@ describe('Petitions Workflow (e2e)', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.status).toBe('processing');
     expect(res.body.data.history.length).toBeGreaterThanOrEqual(2);
+
+    // Verify durable in-app notification created for author Resident 1
+    const authorNotif = dbNotifications.find(
+      (n) =>
+        n.referenceId === createdPetitionId &&
+        n.title.includes('Đang xử lý'),
+    );
+    expect(authorNotif).toBeDefined();
   });
 
-  it('Resident 1 cannot cancel petition once it is in processing state', async () => {
+  it('Resident 1 cannot cancel petition once it is in processing state (FR-15)', async () => {
     const res = await request(app.getHttpServer())
       .patch(`/api/petitions/${createdPetitionId}/cancel`)
       .set('Cookie', resident1Cookie)
@@ -505,7 +728,90 @@ describe('Petitions Workflow (e2e)', () => {
     expect(res.body.success).toBe(false);
   });
 
-  it('Leader 1 should transition petition from processing to resolved', async () => {
+  it('Resident 2 should submit petition in KP2, and Leader 2 should reject it with required note (FR-14)', async () => {
+    // 1. Resident 2 submits petition in KP2
+    const createRes = await request(app.getHttpServer())
+      .post('/api/petitions')
+      .set('Cookie', resident2Cookie)
+      .set('Origin', 'http://localhost:3000')
+      .field('title', 'Tụ tập gây mất trật tự ban đêm')
+      .field('description', 'Khu vực ngã ba thường xuyên có thanh niên tụ tập nẹt pô')
+      .field('category', 'security');
+
+    expect(createRes.status).toBe(201);
+    const pet2Id = createRes.body.data.id;
+
+    // 2. Leader 2 transitions reviewing -> processing
+    const procRes = await request(app.getHttpServer())
+      .patch(`/api/petitions/${pet2Id}/status`)
+      .set('Cookie', leader2Cookie)
+      .set('Origin', 'http://localhost:3000')
+      .send({ status: 'processing' });
+
+    expect(procRes.status).toBe(200);
+
+    // 3. Leader 2 attempts rejection without note -> 400 Bad Request
+    const emptyRejectRes = await request(app.getHttpServer())
+      .patch(`/api/petitions/${pet2Id}/status`)
+      .set('Cookie', leader2Cookie)
+      .set('Origin', 'http://localhost:3000')
+      .send({ status: 'rejected', responseNote: '   ' });
+
+    expect(emptyRejectRes.status).toBe(400);
+
+    // 4. Leader 2 rejects with valid note -> 200 OK
+    const rejectRes = await request(app.getHttpServer())
+      .patch(`/api/petitions/${pet2Id}/status`)
+      .set('Cookie', leader2Cookie)
+      .set('Origin', 'http://localhost:3000')
+      .send({
+        status: 'rejected',
+        responseNote: 'Đã chuyển hồ sơ sang công an phường xử lý vi phạm giao thông',
+      });
+
+    expect(rejectRes.status).toBe(200);
+    expect(rejectRes.body.data.status).toBe('rejected');
+    expect(rejectRes.body.data.responseNote).toBe(
+      'Đã chuyển hồ sơ sang công an phường xử lý vi phạm giao thông',
+    );
+
+    // 5. Verify durable notification created for Resident 2
+    const rejectNotif = dbNotifications.find(
+      (n) => n.referenceId === pet2Id && n.title.includes('Bị từ chối'),
+    );
+    expect(rejectNotif).toBeDefined();
+
+    // 6. Transition on rejected petition is forbidden
+    const reProcRes = await request(app.getHttpServer())
+      .patch(`/api/petitions/${pet2Id}/status`)
+      .set('Cookie', leader2Cookie)
+      .set('Origin', 'http://localhost:3000')
+      .send({ status: 'processing' });
+
+    expect(reProcRes.status).toBe(400);
+  });
+
+  it('Cross-role status transition restrictions and invalid state transitions (FR-14)', async () => {
+    // 1. Resident cannot update status (403)
+    const residentStatusRes = await request(app.getHttpServer())
+      .patch(`/api/petitions/${createdPetitionId}/status`)
+      .set('Cookie', resident1Cookie)
+      .set('Origin', 'http://localhost:3000')
+      .send({ status: 'resolved' });
+
+    expect(residentStatusRes.status).toBe(403);
+
+    // 2. Leader 2 cannot update Leader 1's petition (403)
+    const crossLeaderRes = await request(app.getHttpServer())
+      .patch(`/api/petitions/${createdPetitionId}/status`)
+      .set('Cookie', leader2Cookie)
+      .set('Origin', 'http://localhost:3000')
+      .send({ status: 'resolved' });
+
+    expect(crossLeaderRes.status).toBe(403);
+  });
+
+  it('Leader 1 should transition petition from processing to resolved (FR-14)', async () => {
     const res = await request(app.getHttpServer())
       .patch(`/api/petitions/${createdPetitionId}/status`)
       .set('Cookie', leader1Cookie)
@@ -518,9 +824,18 @@ describe('Petitions Workflow (e2e)', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.status).toBe('resolved');
+
+    // Terminal state cannot transition again
+    const postResolvedRes = await request(app.getHttpServer())
+      .patch(`/api/petitions/${createdPetitionId}/status`)
+      .set('Cookie', leader1Cookie)
+      .set('Origin', 'http://localhost:3000')
+      .send({ status: 'processing' });
+
+    expect(postResolvedRes.status).toBe(400);
   });
 
-  it('Officer should view petition details and timeline ward-wide', async () => {
+  it('Officer should view petition details and timeline ward-wide (FR-13 & FR-14)', async () => {
     const res = await request(app.getHttpServer())
       .get(`/api/petitions/${createdPetitionId}`)
       .set('Cookie', officerCookie);
@@ -528,9 +843,12 @@ describe('Petitions Workflow (e2e)', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.id).toBe(createdPetitionId);
     expect(res.body.data.history.length).toBeGreaterThanOrEqual(3);
+    expect(res.body.data.history[0].toStatus).toBe('reviewing');
+    expect(res.body.data.history[1].toStatus).toBe('processing');
+    expect(res.body.data.history[2].toStatus).toBe('resolved');
   });
 
-  it('Resident 1 can create another petition and cancel it while in reviewing state', async () => {
+  it('Resident 1 can create another petition and cancel it while in reviewing state (FR-15)', async () => {
     const createRes = await request(app.getHttpServer())
       .post('/api/petitions')
       .set('Cookie', resident1Cookie)
@@ -540,16 +858,94 @@ describe('Petitions Workflow (e2e)', () => {
       .field('category', 'infrastructure');
 
     expect(createRes.status).toBe(201);
-    const pet2Id = createRes.body.data.id;
+    const petCancelId = createRes.body.data.id;
 
+    // Non-author Resident 2 cannot cancel (404)
+    const r2CancelRes = await request(app.getHttpServer())
+      .patch(`/api/petitions/${petCancelId}/cancel`)
+      .set('Cookie', resident2Cookie)
+      .set('Origin', 'http://localhost:3000')
+      .send({ reason: 'Hủy trái phép' });
+
+    expect(r2CancelRes.status).toBe(404);
+
+    // Leader cannot cancel (403)
+    const leaderCancelRes = await request(app.getHttpServer())
+      .patch(`/api/petitions/${petCancelId}/cancel`)
+      .set('Cookie', leader1Cookie)
+      .set('Origin', 'http://localhost:3000')
+      .send({ reason: 'Trưởng KP hủy' });
+
+    expect(leaderCancelRes.status).toBe(403);
+
+    // Officer cannot cancel (403)
+    const officerCancelRes = await request(app.getHttpServer())
+      .patch(`/api/petitions/${petCancelId}/cancel`)
+      .set('Cookie', officerCookie)
+      .set('Origin', 'http://localhost:3000')
+      .send({ reason: 'Cán bộ hủy' });
+
+    expect(officerCancelRes.status).toBe(403);
+
+    // Author Resident 1 cancels successfully
     const cancelRes = await request(app.getHttpServer())
-      .patch(`/api/petitions/${pet2Id}/cancel`)
+      .patch(`/api/petitions/${petCancelId}/cancel`)
       .set('Cookie', resident1Cookie)
       .set('Origin', 'http://localhost:3000')
       .send({ reason: 'Ban quản lý đã thay bóng đèn' });
 
     expect(cancelRes.status).toBe(200);
     expect(cancelRes.body.data.status).toBe('cancelled');
+    expect(cancelRes.body.data.responseNote).toBe('Ban quản lý đã thay bóng đèn');
+
+    // Cancelling an already cancelled petition fails
+    const reCancelRes = await request(app.getHttpServer())
+      .patch(`/api/petitions/${petCancelId}/cancel`)
+      .set('Cookie', resident1Cookie)
+      .set('Origin', 'http://localhost:3000')
+      .send({ reason: 'Hủy lại' });
+
+    expect(reCancelRes.status).toBe(400);
+  });
+
+  it('Officer can process and resolve petitions across any neighborhood (FR-14)', async () => {
+    // 1. Resident 1 creates petition 3 in KP1
+    const createRes = await request(app.getHttpServer())
+      .post('/api/petitions')
+      .set('Cookie', resident1Cookie)
+      .set('Origin', 'http://localhost:3000')
+      .field('title', 'Cây xanh nghiêng nguy hiểm')
+      .field('description', 'Cây xà cừ trước số nhà 50 có nguy cơ gãy đổ')
+      .field('category', 'infrastructure');
+
+    expect(createRes.status).toBe(201);
+    const pet3Id = createRes.body.data.id;
+
+    // 2. Officer transitions reviewing -> processing
+    const procRes = await request(app.getHttpServer())
+      .patch(`/api/petitions/${pet3Id}/status`)
+      .set('Cookie', officerCookie)
+      .set('Origin', 'http://localhost:3000')
+      .send({
+        status: 'processing',
+        responseNote: 'UBND phường đã cử công ty cây xanh khảo sát',
+      });
+
+    expect(procRes.status).toBe(200);
+    expect(procRes.body.data.status).toBe('processing');
+
+    // 3. Officer transitions processing -> resolved
+    const resolveRes = await request(app.getHttpServer())
+      .patch(`/api/petitions/${pet3Id}/status`)
+      .set('Cookie', officerCookie)
+      .set('Origin', 'http://localhost:3000')
+      .send({
+        status: 'resolved',
+        responseNote: 'Đã hoàn tất tỉa cành và gia cố cây xanh an toàn',
+      });
+
+    expect(resolveRes.status).toBe(200);
+    expect(resolveRes.body.data.status).toBe('resolved');
   });
 
   it('should reject malformed UUID route parameter with 400', async () => {
