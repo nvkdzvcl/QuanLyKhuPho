@@ -39,6 +39,54 @@ type DbMockAnnouncement = Announcement & {
   comments: (Comment & { author: Account })[];
 };
 
+type AnnouncementWhereClause = {
+  status?: DbAnnouncementStatus;
+  scope?: DbAnnouncementScope;
+  neighborhoodId?: string | null;
+  title?: { contains?: string };
+  content?: { contains?: string };
+  AND?: AnnouncementWhereClause | AnnouncementWhereClause[];
+  OR?: AnnouncementWhereClause[];
+};
+
+function matchesAnnouncementWhere(
+  announcement: DbMockAnnouncement,
+  where?: AnnouncementWhereClause,
+): boolean {
+  if (!where) return true;
+
+  const andConditions = where.AND
+    ? Array.isArray(where.AND)
+      ? where.AND
+      : [where.AND]
+    : [];
+  if (!andConditions.every((condition) => matchesAnnouncementWhere(announcement, condition))) {
+    return false;
+  }
+  if (where.OR && !where.OR.some((condition) => matchesAnnouncementWhere(announcement, condition))) {
+    return false;
+  }
+  if (where.status && announcement.status !== where.status) return false;
+  if (where.scope && announcement.scope !== where.scope) return false;
+  if (
+    where.neighborhoodId !== undefined &&
+    announcement.neighborhoodId !== where.neighborhoodId
+  ) {
+    return false;
+  }
+
+  const searchTitle = where.title?.contains?.toLocaleLowerCase('vi-VN');
+  if (searchTitle && !announcement.title.toLocaleLowerCase('vi-VN').includes(searchTitle)) {
+    return false;
+  }
+  const searchContent = where.content?.contains?.toLocaleLowerCase('vi-VN');
+  if (searchContent && !announcement.content.toLocaleLowerCase('vi-VN').includes(searchContent)) {
+    return false;
+  }
+
+  return true;
+}
+
 describe('Announcements & Comments (e2e)', () => {
   let app: INestApplication;
   let sessionService: SessionService;
@@ -79,6 +127,8 @@ describe('Announcements & Comments (e2e)', () => {
 
   let residentCookie: string;
   let leaderCookie: string;
+  let officerCookie: string;
+  let otherResidentCookie: string;
 
   beforeAll(async () => {
     const mockPrisma = {
@@ -128,16 +178,36 @@ describe('Announcements & Comments (e2e)', () => {
         },
       },
       announcement: {
-        findMany: async ({ where }: { where?: Prisma.AnnouncementWhereInput }) => {
-          let list = [...dbAnnouncements];
-          if (where?.status) {
-            list = list.filter((a) => a.status === where.status);
-          }
-          return list;
+        findMany: async ({
+          where,
+          orderBy,
+          skip = 0,
+          take,
+        }: {
+          where?: Prisma.AnnouncementWhereInput;
+          orderBy?: Prisma.AnnouncementOrderByWithRelationInput;
+          skip?: number;
+          take?: number;
+        }) => {
+          const clause = where as AnnouncementWhereClause | undefined;
+          const list = dbAnnouncements
+            .filter((announcement) => matchesAnnouncementWhere(announcement, clause))
+            .sort((left, right) =>
+              orderBy?.createdAt === 'desc'
+                ? right.createdAt.getTime() - left.createdAt.getTime()
+                : left.createdAt.getTime() - right.createdAt.getTime(),
+            );
+          return list.slice(skip, take === undefined ? undefined : skip + take);
         },
         findUnique: async ({ where }: { where: Prisma.AnnouncementWhereUniqueInput }) =>
           dbAnnouncements.find((a) => a.id === where.id) || null,
-        count: async () => dbAnnouncements.length,
+        count: async ({ where }: { where?: Prisma.AnnouncementWhereInput }) =>
+          dbAnnouncements.filter((announcement) =>
+            matchesAnnouncementWhere(
+              announcement,
+              where as AnnouncementWhereClause | undefined,
+            ),
+          ).length,
         create: async ({ data }: { data: Prisma.AnnouncementUncheckedCreateInput }) => {
           const author = dbAccounts.find((a) => a.id === data.authorId)!;
           const neighborhood = dbNeighborhoods.find((n) => n.id === data.neighborhoodId) || null;
@@ -392,7 +462,7 @@ describe('Announcements & Comments (e2e)', () => {
       },
     });
 
-    await mockPrisma.account.create({
+    const officerAcc = await mockPrisma.account.create({
       data: {
         phoneEncrypted: cryptoService.encrypt('0933333333'),
         phoneHash: cryptoService.hashPhone('0933333333'),
@@ -401,6 +471,18 @@ describe('Announcements & Comments (e2e)', () => {
         status: DbAccountStatus.active,
         address: null,
         neighborhoodId: null,
+      },
+    });
+
+    const otherResidentAcc = await mockPrisma.account.create({
+      data: {
+        phoneEncrypted: cryptoService.encrypt('0944444444'),
+        phoneHash: cryptoService.hashPhone('0944444444'),
+        fullName: 'Pham Resident KP2',
+        role: Role.resident,
+        status: DbAccountStatus.active,
+        address: '50 Hang Bai',
+        neighborhoodId: dbNeighborhoods[1]?.id,
       },
     });
 
@@ -420,6 +502,22 @@ describe('Announcements & Comments (e2e)', () => {
       dbNeighborhoods[0]?.id ?? null,
     );
     leaderCookie = `${SESSION_COOKIE_NAME}=${leadSessId}`;
+
+    const offSessId = await sessionService.createSession(
+      officerAcc.id,
+      UserRole.OFFICER,
+      AccountStatus.ACTIVE,
+      null,
+    );
+    officerCookie = `${SESSION_COOKIE_NAME}=${offSessId}`;
+
+    const otherResSessId = await sessionService.createSession(
+      otherResidentAcc.id,
+      UserRole.RESIDENT,
+      AccountStatus.ACTIVE,
+      dbNeighborhoods[1]?.id ?? null,
+    );
+    otherResidentCookie = `${SESSION_COOKIE_NAME}=${otherResSessId}`;
   });
 
   afterAll(async () => {
@@ -482,5 +580,180 @@ describe('Announcements & Comments (e2e)', () => {
 
     expect(countRes.status).toBe(200);
     expect(typeof countRes.body.data.unreadCount).toBe('number');
+  });
+
+  it('Officer should create ward announcement and notify all active accounts across the ward', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/announcements')
+      .set('Cookie', officerCookie)
+      .field('title', 'Thông báo phòng chống bão cấp phường')
+      .field('content', 'Kính đề nghị toàn thể nhân dân chủ động chằng chống nhà cửa...')
+      .field('scope', 'ward');
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.scope).toBe('ward');
+    expect(res.body.data.neighborhoodId).toBeNull();
+
+    // Verify both residents (KP1 and KP2) can see the ward announcement in their feeds
+    const kp1Feed = await request(app.getHttpServer())
+      .get('/api/announcements')
+      .set('Cookie', residentCookie);
+    expect(kp1Feed.body.data.items.some((item: { title: string }) => item.title === 'Thông báo phòng chống bão cấp phường')).toBe(true);
+
+    const kp2Feed = await request(app.getHttpServer())
+      .get('/api/announcements')
+      .set('Cookie', otherResidentCookie);
+    expect(kp2Feed.body.data.items.some((item: { title: string }) => item.title === 'Thông báo phòng chống bão cấp phường')).toBe(true);
+    expect(
+      kp2Feed.body.data.items.some(
+        (item: { title: string }) => item.title === 'Thông báo họp tổ 1',
+      ),
+    ).toBe(false);
+  });
+
+  it('Officer and Author Leader should edit announcement successfully, and resident edit should be forbidden', async () => {
+    const annId = dbAnnouncements[0]?.id;
+
+    // Leader edits their own announcement
+    const editRes = await request(app.getHttpServer())
+      .patch(`/api/announcements/${annId}`)
+      .set('Cookie', leaderCookie)
+      .send({ title: 'Thông báo họp tổ 1 (Đã cập nhật giờ)' });
+
+    expect(editRes.status).toBe(200);
+    expect(editRes.body.data.title).toBe('Thông báo họp tổ 1 (Đã cập nhật giờ)');
+
+    // Resident edit is rejected
+    const residentEditRes = await request(app.getHttpServer())
+      .patch(`/api/announcements/${annId}`)
+      .set('Cookie', residentCookie)
+      .send({ title: 'Cư dân sửa tiêu đề trái phép' });
+
+    expect(residentEditRes.status).toBe(403);
+  });
+
+  it('Resident should be rejected with 403 when creating announcement or moderating comment', async () => {
+    const createRes = await request(app.getHttpServer())
+      .post('/api/announcements')
+      .set('Cookie', residentCookie)
+      .send({
+        title: 'Cư dân tự phát thông báo',
+        content: 'Nội dung không hợp lệ',
+        scope: 'neighborhood',
+      });
+
+    expect(createRes.status).toBe(403);
+
+    const annId = dbAnnouncements[0]?.id;
+    const commentId = dbComments[0]?.id;
+
+    const modRes = await request(app.getHttpServer())
+      .patch(`/api/announcements/${annId}/comments/${commentId}/moderate`)
+      .set('Cookie', residentCookie)
+      .send({ isRemoved: true });
+
+    expect(modRes.status).toBe(403);
+  });
+
+  it('Empty or whitespace comment should be rejected with 400 Bad Request', async () => {
+    const annId = dbAnnouncements[0]?.id;
+
+    const emptyRes = await request(app.getHttpServer())
+      .post(`/api/announcements/${annId}/comments`)
+      .set('Cookie', residentCookie)
+      .send({ content: '   ' });
+
+    expect(emptyRes.status).toBe(400);
+  });
+
+  it('Officer should moderate comments across any neighborhood and immutable decision cannot be overwritten', async () => {
+    const annId = dbAnnouncements[0]?.id;
+
+    // Post a new comment to moderate
+    const comRes = await request(app.getHttpServer())
+      .post(`/api/announcements/${annId}/comments`)
+      .set('Cookie', residentCookie)
+      .send({ content: 'Bình luận cần kiểm duyệt bởi cán bộ phường' });
+
+    expect(comRes.status).toBe(201);
+    const newCommentId = comRes.body.data.id;
+
+    // Officer moderates comment in KP1
+    const modRes = await request(app.getHttpServer())
+      .patch(`/api/announcements/${annId}/comments/${newCommentId}/moderate`)
+      .set('Cookie', officerCookie)
+      .send({ isRemoved: true, removedReason: 'Ngôn từ không phù hợp' });
+
+    expect(modRes.status).toBe(200);
+    expect(modRes.body.data.isRemoved).toBe(true);
+
+    // Re-moderating the already-removed comment is rejected
+    const reModRes = await request(app.getHttpServer())
+      .patch(`/api/announcements/${annId}/comments/${newCommentId}/moderate`)
+      .set('Cookie', officerCookie)
+      .send({ isRemoved: true, removedReason: 'Lý do khác' });
+
+    expect(reModRes.status).toBe(400);
+
+    // Attempting to un-remove (isRemoved: false) is rejected
+    const unModRes = await request(app.getHttpServer())
+      .patch(`/api/announcements/${annId}/comments/${newCommentId}/moderate`)
+      .set('Cookie', officerCookie)
+      .send({ isRemoved: false });
+
+    expect(unModRes.status).toBe(400);
+  });
+
+  it('Attachment download endpoint should serve file with safe headers and deny cross-neighborhood resident', async () => {
+    const annId = dbAnnouncements[0]?.id;
+    const attId = dbAttachments[0]?.id;
+
+    expect(annId).toBeDefined();
+    expect(attId).toBeDefined();
+
+    // Authorized resident in KP-01 downloads attachment
+    const downloadRes = await request(app.getHttpServer())
+      .get(`/api/announcements/${annId}/attachments/${attId}`)
+      .set('Cookie', residentCookie);
+
+    expect(downloadRes.status).toBe(200);
+    expect(downloadRes.headers['content-type']).toBe('application/pdf');
+    expect(downloadRes.headers['content-disposition']).toContain('attachment');
+
+    // Cross-neighborhood resident in KP-02 is denied
+    const deniedRes = await request(app.getHttpServer())
+      .get(`/api/announcements/${annId}/attachments/${attId}`)
+      .set('Cookie', otherResidentCookie);
+
+    expect(deniedRes.status).toBe(403);
+  });
+
+  it('Leader should soft-remove announcement, removing it from resident feeds and rejecting new comments', async () => {
+    const annId = dbAnnouncements[0]?.id;
+
+    // Soft-remove announcement
+    const delRes = await request(app.getHttpServer())
+      .delete(`/api/announcements/${annId}`)
+      .set('Cookie', leaderCookie);
+
+    expect(delRes.status).toBe(200);
+    expect(delRes.body.data.success).toBe(true);
+
+    // Resident querying feed no longer sees the soft-removed announcement
+    const listRes = await request(app.getHttpServer())
+      .get('/api/announcements')
+      .set('Cookie', residentCookie);
+
+    expect(listRes.body.data.items.some((item: { id: string }) => item.id === annId)).toBe(false);
+
+    // Removed announcements are hidden from ordinary residents, so access is denied
+    // without disclosing whether the resource still exists in retained history.
+    const commentRes = await request(app.getHttpServer())
+      .post(`/api/announcements/${annId}/comments`)
+      .set('Cookie', residentCookie)
+      .send({ content: 'Bình luận trên thông báo đã gỡ' });
+
+    expect(commentRes.status).toBe(403);
   });
 });
