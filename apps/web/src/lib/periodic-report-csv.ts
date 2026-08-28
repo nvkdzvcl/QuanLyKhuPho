@@ -32,7 +32,7 @@ export function escapeCsvCell(value: unknown): string {
   let str = String(value);
 
   // Prevent formula injection in spreadsheet applications (Excel, LibreOffice, Google Sheets)
-  if (typeof value === 'string' && /^\s*[=+\-@]/.test(str)) {
+  if (typeof value === 'string' && /^[\s\t]*[=+\-@\t]/.test(str)) {
     str = `'${str}`;
   }
 
@@ -203,6 +203,9 @@ export function generatePeriodicReportCsv(
  * Triggers a client-side download of the periodic report CSV and immediately revokes the object URL.
  */
 export function downloadPeriodicReportCsv(report: PeriodicReportResponseDto): void {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return;
+  }
   const csvContent = generatePeriodicReportCsv(report);
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

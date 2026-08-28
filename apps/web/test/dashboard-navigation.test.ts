@@ -295,6 +295,10 @@ describe('Dashboard Navigation Configuration & Contracts', () => {
     });
 
     it('should return matching item metadata for Officer sections', () => {
+      const overviewItem = getSectionById(UserRole.OFFICER, 'overview');
+      expect(overviewItem).toBeDefined();
+      expect(overviewItem?.id).toBe('overview');
+
       const item = getSectionById(UserRole.OFFICER, 'analytics');
       expect(item).toBeDefined();
       expect(item?.id).toBe('analytics');
@@ -304,6 +308,20 @@ describe('Dashboard Navigation Configuration & Contracts', () => {
       expect(leaderItem).toBeDefined();
       expect(leaderItem?.id).toBe('leaders');
       expect(leaderItem?.label).toBe('Quản lý Tổ trưởng');
+
+      const reportsItem = getSectionById(UserRole.OFFICER, 'reports');
+      expect(reportsItem).toBeDefined();
+      expect(reportsItem?.id).toBe('reports');
+      expect(reportsItem?.label).toBe('Báo cáo');
+
+      const pendingItem = getSectionById(UserRole.OFFICER, 'pending-residents');
+      expect(pendingItem).toBeDefined();
+      expect(pendingItem?.id).toBe('pending-residents');
+      expect(pendingItem?.label).toBe('Hồ sơ chờ duyệt');
+
+      const unknownOfficer = getSectionById(UserRole.OFFICER, 'non-existent');
+      expect(unknownOfficer).toBeDefined();
+      expect(unknownOfficer?.id).toBe('overview');
     });
   });
 

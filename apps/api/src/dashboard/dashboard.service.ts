@@ -75,12 +75,17 @@ export class DashboardService {
       }
     }
 
-    if (startDate && endDate && startDate > endDate) {
-      throw new AppException(
-        'Ngày bắt đầu không được lớn hơn ngày kết thúc',
-        HttpStatus.BAD_REQUEST,
-        ErrorCode.VALIDATION_ERROR,
-      );
+    if (startDate && endDate) {
+      const isInvalidRange = endDateIsExclusive
+        ? startDate >= endDate
+        : startDate > endDate;
+      if (isInvalidRange) {
+        throw new AppException(
+          'Ngày bắt đầu không được lớn hơn ngày kết thúc',
+          HttpStatus.BAD_REQUEST,
+          ErrorCode.VALIDATION_ERROR,
+        );
+      }
     }
 
     return { startDate, endDate, endDateIsExclusive };

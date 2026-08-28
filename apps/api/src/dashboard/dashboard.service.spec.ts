@@ -57,7 +57,7 @@ describe('DashboardService Unit Tests', () => {
     service = new DashboardService(prisma);
   });
 
-  describe('getWardOverview', () => {
+  describe('getWardOverview (FR-17)', () => {
     it('should aggregate ward-wide metrics and per-neighborhood metrics correctly', async () => {
       vi.mocked(prisma.neighborhood.findMany).mockResolvedValue([
         mockNeighborhood1,
@@ -144,6 +144,16 @@ describe('DashboardService Unit Tests', () => {
       expect(n1?.totalPetitionsCount).toBe(10);
       expect(n1?.resolvedPetitionsCount).toBe(7);
       expect(n1?.pendingPetitionsCount).toBe(3);
+
+      const n2 = result.neighborhoodSummaries.find((n) => n.id === mockNeighborhood2.id);
+      expect(n2).toBeDefined();
+      expect(n2?.residentCount).toBe(15);
+      expect(n2?.activeResidentCount).toBe(15);
+      expect(n2?.pendingResidentCount).toBe(0);
+      expect(n2?.publishedAnnouncementsCount).toBe(2);
+      expect(n2?.totalPetitionsCount).toBe(4);
+      expect(n2?.resolvedPetitionsCount).toBe(4);
+      expect(n2?.pendingPetitionsCount).toBe(0);
     });
 
     it('should handle zero records gracefully', async () => {
@@ -162,9 +172,55 @@ describe('DashboardService Unit Tests', () => {
       expect(result.currentMonthAnnouncementsCount).toBe(0);
       expect(result.neighborhoodSummaries).toEqual([]);
     });
+
+    it('should return safe zero metrics for neighborhoods with zero activity', async () => {
+      vi.mocked(prisma.neighborhood.findMany).mockResolvedValue([
+        mockNeighborhood1,
+        mockNeighborhood2,
+      ]);
+
+      vi.mocked(prisma.account.groupBy).mockImplementation((async (args: {
+        by: readonly string[];
+      }) => {
+        if (args.by.includes('neighborhoodId')) {
+          return [
+            { neighborhoodId: mockNeighborhood1.id, status: 'active', _count: { id: 10 } },
+          ] as never;
+        }
+        return [{ status: 'active', _count: { id: 10 } }] as never;
+      }) as never);
+
+      vi.mocked(prisma.petition.groupBy).mockImplementation((async (args: {
+        by: readonly string[];
+      }) => {
+        if (args.by.includes('neighborhoodId')) {
+          return [
+            { neighborhoodId: mockNeighborhood1.id, status: 'resolved', _count: { id: 2 } },
+          ] as never;
+        }
+        return [{ status: 'resolved', _count: { id: 2 } }] as never;
+      }) as never);
+
+      vi.mocked(prisma.announcement.count).mockResolvedValue(1);
+      vi.mocked(prisma.announcement.groupBy).mockResolvedValue([
+        { neighborhoodId: mockNeighborhood1.id, _count: { id: 1 } },
+      ] as never);
+
+      const result = await service.getWardOverview();
+      const n2 = result.neighborhoodSummaries.find((n) => n.id === mockNeighborhood2.id);
+
+      expect(n2).toBeDefined();
+      expect(n2?.residentCount).toBe(0);
+      expect(n2?.activeResidentCount).toBe(0);
+      expect(n2?.pendingResidentCount).toBe(0);
+      expect(n2?.publishedAnnouncementsCount).toBe(0);
+      expect(n2?.totalPetitionsCount).toBe(0);
+      expect(n2?.resolvedPetitionsCount).toBe(0);
+      expect(n2?.pendingPetitionsCount).toBe(0);
+    });
   });
 
-  describe('getNeighborhoodDrillDown', () => {
+  describe('getNeighborhoodDrillDown (FR-18)', () => {
     it('should return detailed metrics for a valid neighborhood', async () => {
       vi.mocked(prisma.neighborhood.findUnique).mockResolvedValue(mockNeighborhood1);
 
@@ -230,6 +286,45 @@ describe('DashboardService Unit Tests', () => {
       expect(result.recentPetitions[0]?.authorName).toBe('Cư Dân A');
     });
 
+    it('should return safe zero defaults for a neighborhood with zero activity', async () => {
+      vi.mocked(prisma.neighborhood.findUnique).mockResolvedValue(mockNeighborhood2);
+      vi.mocked(prisma.account.groupBy).mockResolvedValue([]);
+      vi.mocked(prisma.announcement.count).mockResolvedValue(0);
+      vi.mocked(prisma.petition.groupBy).mockResolvedValue([]);
+      vi.mocked(prisma.announcement.findMany).mockResolvedValue([]);
+      vi.mocked(prisma.petition.findMany).mockResolvedValue([]);
+
+      const result = await service.getNeighborhoodDrillDown(mockNeighborhood2.id);
+
+      expect(result.neighborhood.id).toBe(mockNeighborhood2.id);
+      expect(result.residentCount).toBe(0);
+      expect(result.accountsByStatus).toEqual({
+        active: 0,
+        pending: 0,
+        locked: 0,
+        rejected: 0,
+        total: 0,
+      });
+      expect(result.publishedAnnouncementsCount).toBe(0);
+      expect(result.currentMonthAnnouncementsCount).toBe(0);
+      expect(result.petitionsByStatus).toEqual({
+        reviewing: 0,
+        processing: 0,
+        resolved: 0,
+        rejected: 0,
+        cancelled: 0,
+        total: 0,
+      });
+      expect(result.petitionsByCategory).toEqual({
+        [PetitionCategory.INFRASTRUCTURE]: 0,
+        [PetitionCategory.SANITATION]: 0,
+        [PetitionCategory.SECURITY]: 0,
+        [PetitionCategory.OTHER]: 0,
+      });
+      expect(result.recentAnnouncements).toEqual([]);
+      expect(result.recentPetitions).toEqual([]);
+    });
+
     it('should throw 404 if neighborhood is not found', async () => {
       vi.mocked(prisma.neighborhood.findUnique).mockResolvedValue(null);
 
@@ -247,7 +342,7 @@ describe('DashboardService Unit Tests', () => {
     });
   });
 
-  describe('getPetitionCategoryAnalytics', () => {
+  describe('getPetitionCategoryAnalytics (FR-19)', () => {
     it('should return all 4 categories in stable order with zero-filling', async () => {
       vi.mocked(prisma.petition.groupBy).mockImplementation((async (args: {
         where?: { status?: string };
@@ -299,7 +394,39 @@ describe('DashboardService Unit Tests', () => {
       expect(other?.percentage).toBe(0);
     });
 
-    it('should throw 400 when startDate > endDate', async () => {
+    it('should handle zero petitions gracefully without NaN or division by zero', async () => {
+      vi.mocked(prisma.petition.groupBy).mockResolvedValue([]);
+
+      const result = await service.getPetitionCategoryAnalytics({});
+
+      expect(result.total).toBe(0);
+      expect(result.series.length).toBe(4);
+      for (const item of result.series) {
+        expect(item.count).toBe(0);
+        expect(item.percentage).toBe(0);
+        expect(item.resolvedCount).toBe(0);
+      }
+    });
+
+    it('should filter by neighborhoodId when provided', async () => {
+      vi.mocked(prisma.neighborhood.findUnique).mockResolvedValue(mockNeighborhood1);
+      vi.mocked(prisma.petition.groupBy).mockResolvedValue([]);
+
+      const result = await service.getPetitionCategoryAnalytics({
+        neighborhoodId: mockNeighborhood1.id,
+      });
+
+      expect(result.neighborhoodId).toBe(mockNeighborhood1.id);
+      expect(prisma.petition.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            neighborhoodId: mockNeighborhood1.id,
+          }),
+        }),
+      );
+    });
+
+    it('should throw 400 when startDate > endDate with date-only strings', async () => {
       await expect(
         service.getPetitionCategoryAnalytics({
           startDate: '2026-08-20',
@@ -319,6 +446,60 @@ describe('DashboardService Unit Tests', () => {
       }
     });
 
+    it('should throw 400 when startDate is 1 day after endDate (boundary date-only check)', async () => {
+      await expect(
+        service.getPetitionCategoryAnalytics({
+          startDate: '2026-08-11',
+          endDate: '2026-08-10',
+        }),
+      ).rejects.toThrow(AppException);
+    });
+
+    it('should throw 400 when startDate > endDate with ISO datetime strings', async () => {
+      await expect(
+        service.getPetitionCategoryAnalytics({
+          startDate: '2026-08-10T12:00:00Z',
+          endDate: '2026-08-10T10:00:00Z',
+        }),
+      ).rejects.toThrow(AppException);
+    });
+
+    it('should allow same-day date-only filter and set next-day exclusive boundary', async () => {
+      vi.mocked(prisma.petition.groupBy).mockResolvedValue([]);
+
+      const result = await service.getPetitionCategoryAnalytics({
+        startDate: '2026-08-10',
+        endDate: '2026-08-10',
+      });
+
+      expect(result.startDate).toBe('2026-08-10');
+      expect(result.endDate).toBe('2026-08-10');
+      expect(prisma.petition.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            createdAt: {
+              gte: new Date('2026-08-10T00:00:00.000Z'),
+              lt: new Date('2026-08-11T00:00:00.000Z'),
+            },
+          }),
+        }),
+      );
+    });
+
+    it('should throw 400 for malformed date strings', async () => {
+      await expect(
+        service.getPetitionCategoryAnalytics({
+          startDate: 'invalid-date',
+        }),
+      ).rejects.toThrow(AppException);
+
+      await expect(
+        service.getPetitionCategoryAnalytics({
+          endDate: 'invalid-date',
+        }),
+      ).rejects.toThrow(AppException);
+    });
+
     it('should throw 404 when neighborhoodId does not exist', async () => {
       vi.mocked(prisma.neighborhood.findUnique).mockResolvedValue(null);
 
@@ -330,8 +511,8 @@ describe('DashboardService Unit Tests', () => {
     });
   });
 
-  describe('getPeriodicReport', () => {
-    it('should generate a monthly report with accurate aggregates and stable neighborhood rows', async () => {
+  describe('getPeriodicReport (FR-20)', () => {
+    it('should generate a monthly report with accurate aggregates and stable neighborhood rows for past period', async () => {
       vi.mocked(prisma.neighborhood.findMany).mockResolvedValue([
         mockNeighborhood1,
         mockNeighborhood2,
@@ -437,6 +618,20 @@ describe('DashboardService Unit Tests', () => {
         total: 6,
       });
 
+      const kp2 = result.neighborhoods[1];
+      expect(kp2?.code).toBe('KP-02');
+      expect(kp2?.activeResidentCount).toBe(15);
+      expect(kp2?.newResidentRegistrationsCount).toBe(3);
+      expect(kp2?.publishedAnnouncementsCount).toBe(1);
+      expect(kp2?.petitionsByStatus).toEqual({
+        reviewing: 0,
+        processing: 1,
+        resolved: 0,
+        rejected: 0,
+        cancelled: 0,
+        total: 1,
+      });
+
       // Confirm no sensitive fields are present in the output
       const jsonStr = JSON.stringify(result);
       expect(jsonStr).not.toContain('phone');
@@ -452,18 +647,49 @@ describe('DashboardService Unit Tests', () => {
       vi.mocked(prisma.announcement.groupBy).mockResolvedValue([]);
       vi.mocked(prisma.petition.groupBy).mockResolvedValue([]);
 
-      const result = await service.getPeriodicReport({
+      const resultQ1 = await service.getPeriodicReport({
         periodType: ReportingPeriodType.QUARTER,
         year: 2026,
         period: 1, // Q1 2026: 2026-01-01 to 2026-04-01
       });
 
-      expect(result.periodType).toBe(ReportingPeriodType.QUARTER);
-      expect(result.year).toBe(2026);
-      expect(result.period).toBe(1);
-      expect(result.label).toBe('Quý 1/2026');
-      expect(result.startDate).toBe('2026-01-01T00:00:00.000Z');
-      expect(result.endDateExclusive).toBe('2026-04-01T00:00:00.000Z');
+      expect(resultQ1.periodType).toBe(ReportingPeriodType.QUARTER);
+      expect(resultQ1.year).toBe(2026);
+      expect(resultQ1.period).toBe(1);
+      expect(resultQ1.label).toBe('Quý 1/2026');
+      expect(resultQ1.startDate).toBe('2026-01-01T00:00:00.000Z');
+      expect(resultQ1.endDateExclusive).toBe('2026-04-01T00:00:00.000Z');
+
+      const resultQ2 = await service.getPeriodicReport({
+        periodType: ReportingPeriodType.QUARTER,
+        year: 2026,
+        period: 2, // Q2 2026: 2026-04-01 to 2026-07-01
+      });
+      expect(resultQ2.label).toBe('Quý 2/2026');
+      expect(resultQ2.startDate).toBe('2026-04-01T00:00:00.000Z');
+      expect(resultQ2.endDateExclusive).toBe('2026-07-01T00:00:00.000Z');
+    });
+
+    it('should flag in-progress warning when report period covers current date', async () => {
+      vi.mocked(prisma.neighborhood.findMany).mockResolvedValue([mockNeighborhood1]);
+      vi.mocked(prisma.account.count).mockResolvedValue(5);
+      vi.mocked(prisma.account.groupBy).mockResolvedValue([]);
+      vi.mocked(prisma.announcement.count).mockResolvedValue(1);
+      vi.mocked(prisma.announcement.groupBy).mockResolvedValue([]);
+      vi.mocked(prisma.petition.groupBy).mockResolvedValue([]);
+
+      const now = new Date();
+      const currentYear = now.getUTCFullYear();
+      const currentMonth = now.getUTCMonth() + 1;
+
+      const result = await service.getPeriodicReport({
+        periodType: ReportingPeriodType.MONTH,
+        year: currentYear,
+        period: currentMonth,
+      });
+
+      expect(result.isDataSufficient).toBe(false);
+      expect(result.warnings.some((w) => w.includes('đang diễn ra'))).toBe(true);
     });
 
     it('should reject invalid period values with 400 Bad Request', async () => {
@@ -500,6 +726,34 @@ describe('DashboardService Unit Tests', () => {
           periodType: ReportingPeriodType.QUARTER,
           year: 2026,
           period: 0,
+        }),
+      ).rejects.toThrow(AppException);
+    });
+
+    it('should reject invalid year with 400 Bad Request', async () => {
+      await expect(
+        service.getPeriodicReport({
+          periodType: ReportingPeriodType.MONTH,
+          year: 1999,
+          period: 1,
+        }),
+      ).rejects.toThrow(AppException);
+
+      await expect(
+        service.getPeriodicReport({
+          periodType: ReportingPeriodType.MONTH,
+          year: 2101,
+          period: 1,
+        }),
+      ).rejects.toThrow(AppException);
+    });
+
+    it('should reject invalid periodType with 400 Bad Request', async () => {
+      await expect(
+        service.getPeriodicReport({
+          periodType: 'annual' as never,
+          year: 2026,
+          period: 1,
         }),
       ).rejects.toThrow(AppException);
     });

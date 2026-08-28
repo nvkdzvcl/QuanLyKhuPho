@@ -14,6 +14,7 @@ import { AnnouncementScope, PetitionCategory } from '@quanlykhupho/shared-types'
  * 5. Leader navigates to Petitions, exercises admin status/category/date filters, opens petition with evidence, advances to PROCESSING, and RESOLVES it with a note; then moderates comment, edits and removes announcement.
  * 6. Officer inspects ward-wide petition list, exercises status filters, verifies resolved petition, evidence & history; then creates a ward-wide announcement.
  * 7. Leader locks resident account, verifies blocked login, unlocks account, and resident logs in again, verifying durable petition status update and ward announcement in notification fallback and feed, followed by final petition status, note, and chronological timeline.
+ * 8. Officer inspects ward overview metrics, drills down into neighborhood details, filters petition categories analytics, and previews/downloads periodic report CSV with absence of sensitive fields.
  */
 
 const OFFICER = {
@@ -171,7 +172,7 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
     page,
     browser,
   }) => {
-    test.setTimeout(180_000);
+    test.setTimeout(240_000);
 
     // Initial navigation to public landing page
     await page.goto('/');
@@ -1368,6 +1369,201 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
       await closeResDetailBtn.click();
 
       await logoutUser(page, RESIDENT.fullName);
+    });
+
+    // =========================================================================
+    // STEP 8: Officer inspects ward overview, drills down into neighborhood, filters analytics, and previews/exports periodic report CSV
+    // =========================================================================
+    await test.step('8. Officer inspects ward overview, neighborhood drill-down, petition categories, and exports periodic report CSV', async () => {
+      // 1. Officer authenticates
+      await loginWithDevOtp(page, OFFICER.phone);
+      await expect(page.getByText('Cán bộ địa phương').first()).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText(OFFICER.fullName).first()).toBeVisible();
+
+      // 2. FR-17: Ward Overview Metrics & Per-Neighborhood Summary List
+      await expect(page.getByRole('button', { name: /khu phố/i }).first()).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByRole('button', { name: /cư dân/i }).first()).toBeVisible();
+      await expect(page.getByRole('button', { name: /kiến nghị/i }).first()).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Kiến nghị theo danh mục' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Tiến độ xử lý theo khu phố' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Tình hình các khu phố' })).toBeVisible();
+      await expect(page.getByRole('cell', { name: 'Khu phố 1' })).toBeVisible();
+
+      // 3. FR-18: Neighborhood Drill-down
+      const analyticsNavBtn = page
+        .getByRole('navigation', { name: 'Điều hướng quản trị địa bàn' })
+        .getByRole('button', {
+          name: 'Khu phố',
+          exact: true,
+        });
+      await expect(analyticsNavBtn).toBeVisible();
+      await analyticsNavBtn.click();
+
+      await expect(
+        page.getByRole('heading', { name: 'Tổng quan địa bàn phường' }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // Open KP-01 drill-down
+      const viewKp1Btn = page.getByRole('button', {
+        name: 'Xem chi tiết Khu phố 1',
+      });
+      await expect(viewKp1Btn).toBeVisible({ timeout: 10_000 });
+      await viewKp1Btn.click();
+
+      // Verify drill-down identity and scoped metrics
+      await expect(
+        page.getByRole('heading', { name: 'Chi tiết khu phố' }),
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(
+        page.getByRole('heading', { name: /Khu phố 1\s*\(KP-01\)/i }),
+      ).toBeVisible();
+      await expect(page.getByText('Cư dân hoạt động')).toBeVisible();
+      await expect(page.getByText('Thông báo đã đăng')).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: 'Kiến nghị gần đây' }),
+      ).toBeVisible();
+      await expect(page.getByText(PETITION.title)).toBeVisible();
+
+      // Close drill-down
+      const closeDrilldownBtn = page.getByRole('button', {
+        name: 'Đóng chi tiết khu phố',
+      });
+      await expect(closeDrilldownBtn).toBeVisible();
+      await closeDrilldownBtn.click();
+      await expect(
+        page.getByRole('heading', { name: 'Chi tiết khu phố' }),
+      ).not.toBeVisible();
+
+      // 4. FR-19: Petition Category Analytics Filtering
+      await expect(
+        page.getByRole('heading', { name: 'Phân bố kiến nghị theo nhóm vấn đề' }),
+      ).toBeVisible();
+      const chartCaption = page.locator('#petition-chart-caption');
+      await expect(chartCaption).toBeVisible({ timeout: 10_000 });
+      await expect(chartCaption).toContainText(/Tổng cộng/i);
+
+      // Filter by neighborhood KP-01
+      const neighborhoodSelect = page
+        .getByRole('region', { name: 'Khu phố' })
+        .getByLabel('Khu phố', { exact: true });
+      await neighborhoodSelect.selectOption({ label: 'Khu phố 1 (KP-01)' });
+      const applyFilterBtn = page.getByRole('button', {
+        name: 'Áp dụng',
+        exact: true,
+      });
+      await expect(applyFilterBtn).toBeEnabled();
+      await applyFilterBtn.click();
+
+      await expect(chartCaption).toContainText(/Tổng cộng/i);
+      await expect(page.getByText('Hạ tầng')).toBeVisible();
+
+      // Filter with historical date range yielding zero results (no-data state)
+      await page.getByLabel('Từ ngày').fill('2000-01-01');
+      await page.getByLabel('Đến ngày').fill('2000-01-02');
+      await applyFilterBtn.click();
+
+      await expect(chartCaption).toHaveText(
+        'Tổng cộng 0 kiến nghị trong phạm vi đã chọn',
+        { timeout: 10_000 },
+      );
+
+      // Reset filters
+      const clearFilterBtn = page.getByRole('button', {
+        name: 'Xóa lọc',
+        exact: true,
+      });
+      await expect(clearFilterBtn).toBeVisible();
+      await clearFilterBtn.click();
+      await expect(chartCaption).not.toHaveText(
+        'Tổng cộng 0 kiến nghị trong phạm vi đã chọn',
+        { timeout: 10_000 },
+      );
+
+      // 5. FR-20: Periodic Report Preview & CSV Export
+      const reportsNavBtn = page
+        .getByRole('navigation', { name: 'Điều hướng quản trị địa bàn' })
+        .getByRole('button', {
+          name: 'Báo cáo',
+          exact: true,
+        });
+      await expect(reportsNavBtn).toBeVisible();
+      await reportsNavBtn.click();
+
+      await expect(
+        page.getByRole('heading', { name: 'Báo cáo Định kỳ Toàn Phường' }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // Trigger preview for selected month/quarter
+      const previewReportBtn = page.getByRole('button', {
+        name: 'Xem trước báo cáo',
+        exact: true,
+      });
+      await expect(previewReportBtn).toBeVisible();
+      await previewReportBtn.click();
+
+      // Verify report metadata, warnings/sufficiency status, and summary metrics
+      await expect(page.getByText(/Phạm vi:.*UTC/i)).toBeVisible({
+        timeout: 10_000,
+      });
+      await expect(
+        page.getByText(/Dữ liệu đầy đủ|Cần lưu ý/i).first(),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: 'Tổng hợp toàn Phường' }),
+      ).toBeVisible();
+      await expect(page.getByText('Cư dân hoạt động').first()).toBeVisible();
+      await expect(page.getByText('Đăng ký mới trong kỳ').first()).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: 'Chi tiết số liệu theo từng Khu phố' }),
+      ).toBeVisible();
+      await expect(page.getByRole('cell', { name: 'KP-01' })).toBeVisible();
+      await expect(page.getByRole('cell', { name: 'Khu phố 1' })).toBeVisible();
+
+      // Trigger real CSV download and assert event, safe filename, UTF-8 BOM, aggregate content, and sensitive data exclusion
+      const downloadPromise = page.waitForEvent('download');
+      const exportCsvBtn = page.getByRole('button', {
+        name: 'Xuất file CSV (UTF-8)',
+        exact: true,
+      });
+      await expect(exportCsvBtn).toBeVisible();
+      await exportCsvBtn.click();
+
+      const download = await downloadPromise;
+      expect(download.suggestedFilename()).toMatch(
+        /^bao-cao-khu-pho-(?:thang|quy)-\d+-\d{4}\.csv$/,
+      );
+
+      const stream = await download.createReadStream();
+      expect(stream).toBeTruthy();
+      const chunks: Buffer[] = [];
+      if (stream) {
+        for await (const chunk of stream) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+      }
+      const csvContent = Buffer.concat(chunks).toString('utf8');
+
+      // Verify UTF-8 BOM prefix (\uFEFF)
+      expect(csvContent.startsWith('\uFEFF')).toBe(true);
+
+      // Verify aggregate section headings and contents
+      expect(csvContent).toContain('BÁO CÁO ĐỊNH KỲ TÌNH HÌNH QUẢN LÝ ĐỊA BÀN PHƯỜNG');
+      expect(csvContent).toContain('THÔNG TIN BÁO CÁO');
+      expect(csvContent).toContain('TỔNG HỢP TOÀN PHƯỜNG');
+      expect(csvContent).toContain('CHI TIẾT THEO TỪNG KHU PHỐ');
+      expect(csvContent).toContain('KP-01');
+      expect(csvContent).toContain('Khu phố 1');
+
+      // Verify absence of sensitive person-level fields
+      expect(csvContent).not.toContain(OFFICER.phone);
+      expect(csvContent).not.toContain(LEADER.phone);
+      expect(csvContent).not.toContain(RESIDENT.phone);
+      expect(csvContent).not.toContain(RESIDENT.fullName);
+      expect(csvContent).not.toContain('CCCD');
+      expect(csvContent).not.toContain('CMND');
+
+      // Logout Officer
+      await logoutUser(page, OFFICER.fullName);
     });
   });
 });

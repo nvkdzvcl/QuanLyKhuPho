@@ -695,7 +695,7 @@ describe('Officer Dashboard API (e2e)', () => {
   });
 
   describe('Authorization and Access Control', () => {
-    it('should return 401 Unauthorized for unauthenticated requests', async () => {
+    it('should return 401 Unauthorized for unauthenticated requests across all dashboard endpoints', async () => {
       const res1 = await request(app.getHttpServer()).get(
         '/api/dashboard/ward-overview',
       );
@@ -707,11 +707,15 @@ describe('Officer Dashboard API (e2e)', () => {
         `/api/dashboard/neighborhoods/${n1Id}`,
       );
       expect(res2.status).toBe(401);
+      expect(res2.body.success).toBe(false);
+      expect(res2.body.errorCode).toBe(ErrorCode.UNAUTHORIZED);
 
       const res3 = await request(app.getHttpServer()).get(
         '/api/dashboard/petition-categories',
       );
       expect(res3.status).toBe(401);
+      expect(res3.body.success).toBe(false);
+      expect(res3.body.errorCode).toBe(ErrorCode.UNAUTHORIZED);
 
       const res4 = await request(app.getHttpServer()).get(
         '/api/dashboard/periodic-report?periodType=month&year=2026&period=1',
@@ -721,7 +725,7 @@ describe('Officer Dashboard API (e2e)', () => {
       expect(res4.body.errorCode).toBe(ErrorCode.UNAUTHORIZED);
     });
 
-    it('should return 403 Forbidden for resident accounts', async () => {
+    it('should return 403 Forbidden for resident accounts across all dashboard endpoints', async () => {
       const res1 = await request(app.getHttpServer())
         .get('/api/dashboard/ward-overview')
         .set('Cookie', [residentCookie]);
@@ -733,11 +737,15 @@ describe('Officer Dashboard API (e2e)', () => {
         .get(`/api/dashboard/neighborhoods/${n1Id}`)
         .set('Cookie', [residentCookie]);
       expect(res2.status).toBe(403);
+      expect(res2.body.success).toBe(false);
+      expect(res2.body.errorCode).toBe(ErrorCode.FORBIDDEN);
 
       const res3 = await request(app.getHttpServer())
         .get('/api/dashboard/petition-categories')
         .set('Cookie', [residentCookie]);
       expect(res3.status).toBe(403);
+      expect(res3.body.success).toBe(false);
+      expect(res3.body.errorCode).toBe(ErrorCode.FORBIDDEN);
 
       const res4 = await request(app.getHttpServer())
         .get('/api/dashboard/periodic-report?periodType=month&year=2026&period=1')
@@ -747,7 +755,7 @@ describe('Officer Dashboard API (e2e)', () => {
       expect(res4.body.errorCode).toBe(ErrorCode.FORBIDDEN);
     });
 
-    it('should return 403 Forbidden for leader accounts', async () => {
+    it('should return 403 Forbidden for leader accounts across all dashboard endpoints', async () => {
       const res1 = await request(app.getHttpServer())
         .get('/api/dashboard/ward-overview')
         .set('Cookie', [leaderCookie]);
@@ -759,11 +767,15 @@ describe('Officer Dashboard API (e2e)', () => {
         .get(`/api/dashboard/neighborhoods/${n1Id}`)
         .set('Cookie', [leaderCookie]);
       expect(res2.status).toBe(403);
+      expect(res2.body.success).toBe(false);
+      expect(res2.body.errorCode).toBe(ErrorCode.FORBIDDEN);
 
       const res3 = await request(app.getHttpServer())
         .get('/api/dashboard/petition-categories')
         .set('Cookie', [leaderCookie]);
       expect(res3.status).toBe(403);
+      expect(res3.body.success).toBe(false);
+      expect(res3.body.errorCode).toBe(ErrorCode.FORBIDDEN);
 
       const res4 = await request(app.getHttpServer())
         .get('/api/dashboard/periodic-report?periodType=month&year=2026&period=1')
@@ -775,7 +787,7 @@ describe('Officer Dashboard API (e2e)', () => {
   });
 
   describe('GET /api/dashboard/ward-overview (FR-17)', () => {
-    it('should allow officer to get full ward overview metrics', async () => {
+    it('should allow officer to get full ward overview metrics with exact per-neighborhood breakdown', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/dashboard/ward-overview')
         .set('Cookie', [officerCookie]);
@@ -811,41 +823,90 @@ describe('Officer Dashboard API (e2e)', () => {
       expect(kp1.totalPetitionsCount).toBe(2);
       expect(kp1.resolvedPetitionsCount).toBe(1);
       expect(kp1.pendingPetitionsCount).toBe(1);
+
+      const kp2 = data.neighborhoodSummaries.find((n) => n.id === n2Id);
+      expect(kp2).toBeDefined();
+      if (!kp2) throw new Error('Expected KP-02 summary');
+      expect(kp2.code).toBe('KP-02');
+      expect(kp2.residentCount).toBe(1);
+      expect(kp2.activeResidentCount).toBe(1);
+      expect(kp2.pendingResidentCount).toBe(0);
+      expect(kp2.publishedAnnouncementsCount).toBe(0);
+      expect(kp2.totalPetitionsCount).toBe(1);
+      expect(kp2.resolvedPetitionsCount).toBe(0);
+      expect(kp2.pendingPetitionsCount).toBe(1);
+
+      // Verify no sensitive fields leaked
+      const resString = JSON.stringify(res.body);
+      expect(resString).not.toContain('phoneEncrypted');
+      expect(resString).not.toContain('phoneHash');
+      expect(resString).not.toContain('0901111111');
+      expect(resString).not.toContain('0988888888');
     });
   });
 
   describe('GET /api/dashboard/neighborhoods/:id (FR-18)', () => {
-    it('should return detailed neighborhood breakdown for officer', async () => {
-      const res = await request(app.getHttpServer())
+    it('should return detailed neighborhood breakdown for officer and enforce neighborhood isolation', async () => {
+      // 1. Check KP-01 drill-down
+      const res1 = await request(app.getHttpServer())
         .get(`/api/dashboard/neighborhoods/${n1Id}`)
         .set('Cookie', [officerCookie]);
 
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      const data = res.body.data as NeighborhoodDetailSummaryDto;
+      expect(res1.status).toBe(200);
+      expect(res1.body.success).toBe(true);
+      const data1 = res1.body.data as NeighborhoodDetailSummaryDto;
 
-      expect(data.neighborhood.id).toBe(n1Id);
-      expect(data.neighborhood.code).toBe('KP-01');
-      expect(data.residentCount).toBe(2);
-      expect(data.accountsByStatus.active).toBe(1);
-      expect(data.accountsByStatus.pending).toBe(1);
-      expect(data.publishedAnnouncementsCount).toBe(2);
-      expect(data.currentMonthAnnouncementsCount).toBe(1);
+      expect(data1.neighborhood.id).toBe(n1Id);
+      expect(data1.neighborhood.code).toBe('KP-01');
+      expect(data1.residentCount).toBe(2);
+      expect(data1.accountsByStatus.active).toBe(1);
+      expect(data1.accountsByStatus.pending).toBe(1);
+      expect(data1.publishedAnnouncementsCount).toBe(2);
+      expect(data1.currentMonthAnnouncementsCount).toBe(1);
 
-      expect(data.petitionsByStatus.reviewing).toBe(1);
-      expect(data.petitionsByStatus.resolved).toBe(1);
-      expect(data.petitionsByStatus.total).toBe(2);
+      expect(data1.petitionsByStatus.reviewing).toBe(1);
+      expect(data1.petitionsByStatus.resolved).toBe(1);
+      expect(data1.petitionsByStatus.total).toBe(2);
 
-      expect(data.petitionsByCategory[PetitionCategory.SANITATION]).toBe(1);
-      expect(data.petitionsByCategory[PetitionCategory.INFRASTRUCTURE]).toBe(1);
-      expect(data.petitionsByCategory[PetitionCategory.SECURITY]).toBe(0);
-      expect(data.petitionsByCategory[PetitionCategory.OTHER]).toBe(0);
+      expect(data1.petitionsByCategory[PetitionCategory.SANITATION]).toBe(1);
+      expect(data1.petitionsByCategory[PetitionCategory.INFRASTRUCTURE]).toBe(1);
+      expect(data1.petitionsByCategory[PetitionCategory.SECURITY]).toBe(0);
+      expect(data1.petitionsByCategory[PetitionCategory.OTHER]).toBe(0);
 
-      expect(data.recentAnnouncements.length).toBe(2);
-      expect(data.recentPetitions.length).toBe(2);
+      expect(data1.recentAnnouncements.length).toBe(2);
+      expect(data1.recentPetitions.length).toBe(2);
+      expect(data1.recentPetitions.every((p) => p.authorName === 'Nguyễn Văn Cư Dân 1')).toBe(true);
+
+      // 2. Check KP-02 drill-down (isolated from KP-01)
+      const res2 = await request(app.getHttpServer())
+        .get(`/api/dashboard/neighborhoods/${n2Id}`)
+        .set('Cookie', [officerCookie]);
+
+      expect(res2.status).toBe(200);
+      expect(res2.body.success).toBe(true);
+      const data2 = res2.body.data as NeighborhoodDetailSummaryDto;
+
+      expect(data2.neighborhood.id).toBe(n2Id);
+      expect(data2.neighborhood.code).toBe('KP-02');
+      expect(data2.residentCount).toBe(1);
+      expect(data2.accountsByStatus.active).toBe(1);
+      expect(data2.accountsByStatus.pending).toBe(0);
+      expect(data2.publishedAnnouncementsCount).toBe(0);
+      expect(data2.currentMonthAnnouncementsCount).toBe(0);
+
+      expect(data2.petitionsByStatus.processing).toBe(1);
+      expect(data2.petitionsByStatus.total).toBe(1);
+
+      expect(data2.petitionsByCategory[PetitionCategory.SECURITY]).toBe(1);
+      expect(data2.petitionsByCategory[PetitionCategory.INFRASTRUCTURE]).toBe(0);
+      expect(data2.petitionsByCategory[PetitionCategory.SANITATION]).toBe(0);
+
+      expect(data2.recentAnnouncements.length).toBe(0);
+      expect(data2.recentPetitions.length).toBe(1);
+      expect(data2.recentPetitions[0]?.authorName).toBe('Lê Cư Dân KP2');
 
       // Verify no sensitive fields leaked
-      const resString = JSON.stringify(res.body);
+      const resString = JSON.stringify(res1.body);
       expect(resString).not.toContain('phoneEncrypted');
       expect(resString).not.toContain('phoneHash');
       expect(resString).not.toContain('0901111111');
@@ -908,21 +969,35 @@ describe('Officer Dashboard API (e2e)', () => {
       expect(other.percentage).toBe(0);
     });
 
-    it('should filter by neighborhoodId correctly', async () => {
-      const res = await request(app.getHttpServer())
+    it('should filter by neighborhoodId correctly for isolation', async () => {
+      // n1Id filter
+      const res1 = await request(app.getHttpServer())
         .get(`/api/dashboard/petition-categories?neighborhoodId=${n1Id}`)
         .set('Cookie', [officerCookie]);
 
-      expect(res.status).toBe(200);
-      const data = res.body.data as PetitionCategoryAnalyticsResponseDto;
-      expect(data.neighborhoodId).toBe(n1Id);
-      expect(data.total).toBe(2);
+      expect(res1.status).toBe(200);
+      const data1 = res1.body.data as PetitionCategoryAnalyticsResponseDto;
+      expect(data1.neighborhoodId).toBe(n1Id);
+      expect(data1.total).toBe(2);
 
-      const security = data.series.find(
-        (s) => s.category === PetitionCategory.SECURITY,
-      );
-      if (!security) throw new Error('Expected security category');
-      expect(security.count).toBe(0);
+      const security1 = data1.series.find((s) => s.category === PetitionCategory.SECURITY);
+      expect(security1?.count).toBe(0);
+
+      // n2Id filter
+      const res2 = await request(app.getHttpServer())
+        .get(`/api/dashboard/petition-categories?neighborhoodId=${n2Id}`)
+        .set('Cookie', [officerCookie]);
+
+      expect(res2.status).toBe(200);
+      const data2 = res2.body.data as PetitionCategoryAnalyticsResponseDto;
+      expect(data2.neighborhoodId).toBe(n2Id);
+      expect(data2.total).toBe(1);
+
+      const security2 = data2.series.find((s) => s.category === PetitionCategory.SECURITY);
+      expect(security2?.count).toBe(1);
+
+      const infra2 = data2.series.find((s) => s.category === PetitionCategory.INFRASTRUCTURE);
+      expect(infra2?.count).toBe(0);
     });
 
     it('should filter by date range correctly', async () => {
@@ -962,11 +1037,66 @@ describe('Officer Dashboard API (e2e)', () => {
       expect(infrastructure.count).toBe(1);
     });
 
+    it('should return safe zero series when date filter matches no petitions', async () => {
+      const res = await request(app.getHttpServer())
+        .get(
+          '/api/dashboard/petition-categories?startDate=2025-01-01&endDate=2025-01-31',
+        )
+        .set('Cookie', [officerCookie]);
+
+      expect(res.status).toBe(200);
+      const data = res.body.data as PetitionCategoryAnalyticsResponseDto;
+      expect(data.total).toBe(0);
+      for (const item of data.series) {
+        expect(item.count).toBe(0);
+        expect(item.percentage).toBe(0);
+        expect(item.resolvedCount).toBe(0);
+      }
+    });
+
+    it('should combine neighborhoodId and date range filters correctly', async () => {
+      const res = await request(app.getHttpServer())
+        .get(
+          `/api/dashboard/petition-categories?neighborhoodId=${n1Id}&startDate=2026-08-10&endDate=2026-08-10`,
+        )
+        .set('Cookie', [officerCookie]);
+
+      expect(res.status).toBe(200);
+      const data = res.body.data as PetitionCategoryAnalyticsResponseDto;
+      expect(data.total).toBe(1);
+      const sanitation = data.series.find(
+        (s) => s.category === PetitionCategory.SANITATION,
+      );
+      expect(sanitation?.count).toBe(1);
+    });
+
     it('should reject startDate > endDate with 400 Bad Request', async () => {
       const res = await request(app.getHttpServer())
         .get(
           '/api/dashboard/petition-categories?startDate=2026-08-20&endDate=2026-08-10',
         )
+        .set('Cookie', [officerCookie]);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
+    });
+
+    it('should reject boundary inverted date-only filters where startDate is 1 day after endDate', async () => {
+      const res = await request(app.getHttpServer())
+        .get(
+          '/api/dashboard/petition-categories?startDate=2026-08-11&endDate=2026-08-10',
+        )
+        .set('Cookie', [officerCookie]);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
+    });
+
+    it('should reject invalid date strings with 400 Bad Request', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/dashboard/petition-categories?startDate=not-a-date')
         .set('Cookie', [officerCookie]);
 
       expect(res.status).toBe(400);
@@ -997,7 +1127,27 @@ describe('Officer Dashboard API (e2e)', () => {
   });
 
   describe('GET /api/dashboard/periodic-report (FR-20)', () => {
-    it('should allow officer to get monthly periodic report with correct structure', async () => {
+    it('should allow officer to get monthly periodic report for past completed month with sufficient data', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/dashboard/periodic-report?periodType=month&year=2026&period=5')
+        .set('Cookie', [officerCookie]);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      const data = res.body.data as PeriodicReportResponseDto;
+
+      expect(data.periodType).toBe(ReportingPeriodType.MONTH);
+      expect(data.year).toBe(2026);
+      expect(data.period).toBe(5);
+      expect(data.label).toBe('Tháng 5/2026');
+      expect(data.startDate).toBe('2026-05-01T00:00:00.000Z');
+      expect(data.endDateExclusive).toBe('2026-06-01T00:00:00.000Z');
+      expect(data.summary.publishedAnnouncementsCount).toBe(1); // annOld created in May 2026
+      expect(data.isDataSufficient).toBe(true);
+      expect(data.warnings).toEqual([]);
+    });
+
+    it('should allow officer to get monthly periodic report with exact aggregate rows', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/dashboard/periodic-report?periodType=month&year=2026&period=8')
         .set('Cookie', [officerCookie]);
@@ -1034,12 +1184,48 @@ describe('Officer Dashboard API (e2e)', () => {
       expect(kp1.publishedAnnouncementsCount).toBe(1);
       expect(kp1.petitionsByStatus.total).toBe(2);
 
+      const kp2 = data.neighborhoods[1];
+      if (!kp2) throw new Error('Expected KP-02 row');
+      expect(kp2.activeResidentCount).toBe(1);
+      expect(kp2.newResidentRegistrationsCount).toBe(1);
+      expect(kp2.publishedAnnouncementsCount).toBe(0);
+      expect(kp2.petitionsByStatus.total).toBe(1);
+
       // Verify no sensitive fields leaked
       const resString = JSON.stringify(res.body);
       expect(resString).not.toContain('phoneEncrypted');
       expect(resString).not.toContain('phoneHash');
       expect(resString).not.toContain('0901111111');
       expect(resString).not.toContain('0988888888');
+    });
+
+    it('should warn when the requested month is still in progress', async () => {
+      const now = new Date();
+      const currentYear = now.getUTCFullYear();
+      const currentMonth = now.getUTCMonth() + 1;
+      const res = await request(app.getHttpServer())
+        .get(
+          `/api/dashboard/periodic-report?periodType=month&year=${currentYear}&period=${currentMonth}`,
+        )
+        .set('Cookie', [officerCookie]);
+
+      expect(res.status).toBe(200);
+      const data = res.body.data as PeriodicReportResponseDto;
+      expect(data.isDataSufficient).toBe(false);
+      expect(data.warnings.some((warning) => warning.includes('đang diễn ra'))).toBe(
+        true,
+      );
+    });
+
+    it('should emit warning when past period had no activity', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/dashboard/periodic-report?periodType=month&year=2026&period=2')
+        .set('Cookie', [officerCookie]);
+
+      expect(res.status).toBe(200);
+      const data = res.body.data as PeriodicReportResponseDto;
+      expect(data.isDataSufficient).toBe(false);
+      expect(data.warnings.some((w) => w.includes('phát sinh'))).toBe(true);
     });
 
     it('should allow officer to get quarterly periodic report with correct boundaries', async () => {
@@ -1071,23 +1257,57 @@ describe('Officer Dashboard API (e2e)', () => {
     });
 
     it('should reject invalid month (> 12 or < 1) with 400 Bad Request', async () => {
-      const res = await request(app.getHttpServer())
+      const res1 = await request(app.getHttpServer())
         .get('/api/dashboard/periodic-report?periodType=month&year=2026&period=13')
         .set('Cookie', [officerCookie]);
 
-      expect(res.status).toBe(400);
-      expect(res.body.success).toBe(false);
-      expect(res.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
+      expect(res1.status).toBe(400);
+      expect(res1.body.success).toBe(false);
+      expect(res1.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
+
+      const res2 = await request(app.getHttpServer())
+        .get('/api/dashboard/periodic-report?periodType=month&year=2026&period=0')
+        .set('Cookie', [officerCookie]);
+
+      expect(res2.status).toBe(400);
+      expect(res2.body.success).toBe(false);
+      expect(res2.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
     });
 
     it('should reject invalid quarter (> 4 or < 1) with 400 Bad Request', async () => {
-      const res = await request(app.getHttpServer())
+      const res1 = await request(app.getHttpServer())
         .get('/api/dashboard/periodic-report?periodType=quarter&year=2026&period=5')
         .set('Cookie', [officerCookie]);
 
-      expect(res.status).toBe(400);
-      expect(res.body.success).toBe(false);
-      expect(res.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
+      expect(res1.status).toBe(400);
+      expect(res1.body.success).toBe(false);
+      expect(res1.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
+
+      const res2 = await request(app.getHttpServer())
+        .get('/api/dashboard/periodic-report?periodType=quarter&year=2026&period=0')
+        .set('Cookie', [officerCookie]);
+
+      expect(res2.status).toBe(400);
+      expect(res2.body.success).toBe(false);
+      expect(res2.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
+    });
+
+    it('should reject invalid year (< 2000 or > 2100) with 400 Bad Request', async () => {
+      const res1 = await request(app.getHttpServer())
+        .get('/api/dashboard/periodic-report?periodType=month&year=1999&period=1')
+        .set('Cookie', [officerCookie]);
+
+      expect(res1.status).toBe(400);
+      expect(res1.body.success).toBe(false);
+      expect(res1.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
+
+      const res2 = await request(app.getHttpServer())
+        .get('/api/dashboard/periodic-report?periodType=month&year=2101&period=1')
+        .set('Cookie', [officerCookie]);
+
+      expect(res2.status).toBe(400);
+      expect(res2.body.success).toBe(false);
+      expect(res2.body.errorCode).toBe(ErrorCode.VALIDATION_ERROR);
     });
 
     it('should reject future period with 400 Bad Request and VALIDATION_ERROR', async () => {

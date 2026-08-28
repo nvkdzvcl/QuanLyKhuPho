@@ -380,7 +380,7 @@ function SmallMetric({ label, value }: { label: string; value: number }) {
 
 interface NeighborhoodDetailProps {
   isLoading: boolean;
-  error: Error | null;
+  error: unknown;
   detail: NeighborhoodDetailSummaryDto | null;
   onClose: () => void;
   onRetry: () => void;
@@ -403,19 +403,25 @@ function NeighborhoodDetail({
               Thống kê cư dân, thông báo và kiến nghị hiện có.
             </CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={onClose}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onClose}
+            aria-label="Đóng chi tiết khu phố"
+          >
             Đóng
           </Button>
         </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <p className="py-8 text-center text-sm text-slate-500">
+          <p className="py-8 text-center text-sm text-slate-500" aria-live="polite">
             Đang tải chi tiết khu phố...
           </p>
         ) : error ? (
           <Alert
             variant="error"
+            title="Không thể tải chi tiết khu phố"
             message={getErrorMessage(error)}
             action={
               <Button variant="outline" size="sm" onClick={onRetry}>
@@ -463,7 +469,11 @@ function NeighborhoodDetail({
               <RecentPetitions items={detail.recentPetitions} />
             </div>
           </div>
-        ) : null}
+        ) : (
+          <p className="py-8 text-center text-sm text-slate-500">
+            Không tìm thấy dữ liệu chi tiết cho khu phố đã chọn.
+          </p>
+        )}
       </CardContent>
     </Card>
   );
@@ -541,34 +551,39 @@ function PetitionCategoryChart({
         Tổng cộng {analytics.total} kiến nghị trong phạm vi đã chọn
       </figcaption>
 
-      <div className="space-y-4">
-        {analytics.series.map((item) => {
-          const width = `${Math.round((item.count / maxCount) * 100)}%`;
-          return (
-            <div key={item.category}>
-              <div className="mb-1 flex items-center justify-between gap-3 text-sm">
-                <span className="font-medium text-slate-700">
-                  {categoryLabels[item.category]}
-                </span>
-                <span className="tabular-nums text-slate-600">
-                  {item.count} ({item.percentage}%) · {item.resolvedCount} đã xử lý
-                </span>
+      {analytics.series.length === 0 ? (
+        <p className="py-4 text-sm text-slate-500">Không có dữ liệu nhóm kiến nghị.</p>
+      ) : (
+        <div className="space-y-4">
+          {analytics.series.map((item) => {
+            const width = `${Math.round((item.count / maxCount) * 100)}%`;
+            const safePercentage = typeof item.percentage === 'number' ? item.percentage : 0;
+            return (
+              <div key={item.category}>
+                <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                  <span className="font-medium text-slate-700">
+                    {categoryLabels[item.category] || item.category}
+                  </span>
+                  <span className="tabular-nums text-slate-600">
+                    {item.count} ({safePercentage}%) · {item.resolvedCount} đã xử lý
+                  </span>
+                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    role="progressbar"
+                    aria-label={`${categoryLabels[item.category] || item.category}: ${item.count} kiến nghị, ${safePercentage} phần trăm`}
+                    aria-valuemin={0}
+                    aria-valuemax={maxCount}
+                    aria-valuenow={item.count}
+                    className={`h-full rounded-full ${categoryColors[item.category] || 'bg-slate-500'}`}
+                    style={{ width }}
+                  />
+                </div>
               </div>
-              <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  role="progressbar"
-                  aria-label={`${categoryLabels[item.category]}: ${item.count} kiến nghị, ${item.percentage} phần trăm`}
-                  aria-valuemin={0}
-                  aria-valuemax={maxCount}
-                  aria-valuenow={item.count}
-                  className={`h-full rounded-full ${categoryColors[item.category]}`}
-                  style={{ width }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </figure>
   );
 }

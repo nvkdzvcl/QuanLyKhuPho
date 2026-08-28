@@ -71,7 +71,13 @@ function getNeighborhoodStatus(pendingResidents: number, pendingPetitions: numbe
 }
 
 export function OfficerOverview({ overview, fallbackNeighborhoodCount, pendingResidentsCount, isLoading, isError, error, onRetry, onNavigateSection }: OfficerOverviewProps) {
-  const { data: categoryAnalytics, isLoading: isLoadingCategories } = usePetitionCategoryAnalytics();
+  const {
+    data: categoryAnalytics,
+    isLoading: isLoadingCategories,
+    isError: isErrorCategories,
+    error: categoriesError,
+    refetch: refetchCategories,
+  } = usePetitionCategoryAnalytics();
   const categorySeries = categoryAnalytics?.series ?? [];
   const donutBackground = buildDonutGradient(categorySeries);
 
@@ -95,23 +101,33 @@ export function OfficerOverview({ overview, fallbackNeighborhoodCount, pendingRe
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:p-6">
           <h2 className="text-base font-bold text-slate-950">Kiến nghị theo danh mục</h2>
-          <div className="mt-6 flex flex-col items-center gap-6 sm:flex-row sm:items-center">
-            <div className="relative h-44 w-44 shrink-0 rounded-full" style={{ background: donutBackground }}>
-              <div className="absolute inset-7 flex flex-col items-center justify-center rounded-full bg-white"><span className="text-2xl font-bold text-slate-950">{isLoadingCategories ? '…' : categoryAnalytics?.total ?? 0}</span><span className="text-xs text-slate-500">tổng số</span></div>
+          {isErrorCategories ? (
+            <div className="mt-4">
+              <Alert
+                variant="error"
+                message={getErrorMessage(categoriesError) || 'Không thể tải thống kê nhóm kiến nghị.'}
+                action={<Button variant="outline" size="sm" onClick={() => refetchCategories()}>Thử lại</Button>}
+              />
             </div>
-            <div className="w-full space-y-3">
-              {categorySeries.length === 0 && !isLoadingCategories ? <p className="text-sm text-slate-500">Chưa có dữ liệu kiến nghị.</p> : categorySeries.map((item) => (
-                <div key={item.category} className="flex items-center gap-2 text-xs"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[item.category] }} /><span className="min-w-0 flex-1 truncate text-slate-600">{CATEGORY_LABELS[item.category]}</span><span className="font-semibold text-slate-950">{item.count}</span><span className="w-12 text-right text-slate-400">{item.percentage.toFixed(1)}%</span></div>
-              ))}
+          ) : (
+            <div className="mt-6 flex flex-col items-center gap-6 sm:flex-row sm:items-center">
+              <div className="relative h-44 w-44 shrink-0 rounded-full" style={{ background: donutBackground }}>
+                <div className="absolute inset-7 flex flex-col items-center justify-center rounded-full bg-white"><span className="text-2xl font-bold text-slate-950">{isLoadingCategories ? '…' : categoryAnalytics?.total ?? 0}</span><span className="text-xs text-slate-500">tổng số</span></div>
+              </div>
+              <div className="w-full space-y-3">
+                {categorySeries.length === 0 && !isLoadingCategories ? <p className="text-sm text-slate-500">Chưa có dữ liệu kiến nghị.</p> : categorySeries.map((item) => (
+                  <div key={item.category} className="flex items-center gap-2 text-xs"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[item.category] }} /><span className="min-w-0 flex-1 truncate text-slate-600">{CATEGORY_LABELS[item.category]}</span><span className="font-semibold text-slate-950">{item.count}</span><span className="w-12 text-right text-slate-400">{(item.percentage ?? 0).toFixed(1)}%</span></div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:p-6">
           <h2 className="text-base font-bold text-slate-950">Tiến độ xử lý theo khu phố</h2>
           <div className="mt-6 space-y-5">
             {isLoading ? <p className="text-sm text-slate-500">Đang tổng hợp tiến độ...</p> : !overview || overview.neighborhoodSummaries.length === 0 ? <p className="text-sm text-slate-500">Chưa có dữ liệu khu phố.</p> : overview.neighborhoodSummaries.slice(0, 6).map((neighborhood) => {
-              const progress = neighborhood.totalPetitionsCount > 0 ? Math.round((neighborhood.resolvedPetitionsCount / neighborhood.totalPetitionsCount) * 100) : 100;
+              const progress = neighborhood.totalPetitionsCount > 0 ? Math.min(Math.max(Math.round((neighborhood.resolvedPetitionsCount / neighborhood.totalPetitionsCount) * 100), 0), 100) : 100;
               return <div key={neighborhood.id} className="grid grid-cols-[88px_1fr_42px] items-center gap-3 text-xs"><span className="truncate font-medium text-slate-700">{neighborhood.name}</span><span className="h-2.5 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-blue-600" style={{ width: `${progress}%` }} /></span><span className="text-right font-semibold tabular-nums text-slate-700">{progress}%</span></div>;
             })}
           </div>

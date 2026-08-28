@@ -161,10 +161,26 @@ export function PeriodicReportCard() {
 
   const handlePreviewSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    let validatedPeriod = selectedPeriod;
+    if (selectedYear === currentUtcYear) {
+      if (
+        periodType === ReportingPeriodType.QUARTER &&
+        selectedPeriod > currentUtcQuarter
+      ) {
+        validatedPeriod = currentUtcQuarter;
+        setSelectedPeriod(currentUtcQuarter);
+      } else if (
+        periodType === ReportingPeriodType.MONTH &&
+        selectedPeriod > currentUtcMonth
+      ) {
+        validatedPeriod = currentUtcMonth;
+        setSelectedPeriod(currentUtcMonth);
+      }
+    }
     setActiveQuery({
       periodType,
       year: selectedYear,
-      period: selectedPeriod,
+      period: validatedPeriod,
     });
   };
 
@@ -191,7 +207,7 @@ export function PeriodicReportCard() {
               variant="primary"
               size="sm"
               onClick={handleDownloadCsv}
-              disabled={isLoading}
+              disabled={isLoading || isFetching}
               className="font-semibold shadow-sm text-xs sm:text-sm self-start sm:self-auto flex items-center gap-1.5"
             >
               <AppIcon name="download" className="h-4 w-4 shrink-0" />

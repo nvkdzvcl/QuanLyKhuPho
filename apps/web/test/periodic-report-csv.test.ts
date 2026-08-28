@@ -116,8 +116,18 @@ describe('Periodic Report CSV Utility', () => {
       expect(escapeCsvCell('-2+5')).toBe("'-2+5");
       expect(escapeCsvCell('@SUM(A1:B10)')).toBe("'@SUM(A1:B10)");
       expect(escapeCsvCell('  =1+1')).toBe("'  =1+1");
+      expect(escapeCsvCell('\t=1+1')).toBe("'\t=1+1");
+      expect(escapeCsvCell('\t+999')).toBe("'\t+999");
+      expect(escapeCsvCell('\t-888')).toBe("'\t-888");
+      expect(escapeCsvCell('\t@SUM(1,2)')).toBe("\"'\t@SUM(1,2)\"");
       expect(escapeCsvCell('@SUM(1,2)')).toBe("\"'@SUM(1,2)\"");
       expect(escapeCsvCell('=1+1,2')).toBe("\"'=1+1,2\"");
+    });
+
+    it('should preserve numeric values without single-quote prefix', () => {
+      expect(escapeCsvCell(0)).toBe('0');
+      expect(escapeCsvCell(42)).toBe('42');
+      expect(escapeCsvCell(-10)).toBe('-10');
     });
   });
 
@@ -156,18 +166,72 @@ describe('Periodic Report CSV Utility', () => {
       );
     });
 
-    it('should include warnings when present', () => {
+    it('should correctly format quarterly reports', () => {
+      const quarterlyReport: PeriodicReportResponseDto = {
+        ...mockReport,
+        periodType: ReportingPeriodType.QUARTER,
+        period: 3,
+        label: 'Quý 3/2026',
+        startDate: '2026-07-01T00:00:00.000Z',
+        endDateExclusive: '2026-10-01T00:00:00.000Z',
+      };
+
+      const csv = generatePeriodicReportCsv(quarterlyReport);
+      expect(csv).toContain('Quý 3/2026');
+      expect(csv).toContain('Hàng quý');
+      expect(csv).toContain('2026-07-01T00:00:00.000Z');
+      expect(csv).toContain('2026-10-01T00:00:00.000Z');
+    });
+
+    it('should handle reports with zero neighborhoods gracefully', () => {
+      const emptyReport: PeriodicReportResponseDto = {
+        periodType: ReportingPeriodType.MONTH,
+        year: 2026,
+        period: 1,
+        label: 'Tháng 1/2026',
+        startDate: '2026-01-01T00:00:00.000Z',
+        endDateExclusive: '2026-02-01T00:00:00.000Z',
+        generatedAt: '2026-01-15T00:00:00.000Z',
+        isDataSufficient: false,
+        warnings: ['Chưa có khu phố nào trong hệ thống'],
+        summary: {
+          neighborhoodCount: 0,
+          activeResidentCount: 0,
+          newResidentRegistrationsCount: 0,
+          publishedAnnouncementsCount: 0,
+          petitionsByStatus: {
+            reviewing: 0,
+            processing: 0,
+            resolved: 0,
+            rejected: 0,
+            cancelled: 0,
+            total: 0,
+          },
+        },
+        neighborhoods: [],
+      };
+
+      const csv = generatePeriodicReportCsv(emptyReport);
+      expect(csv.startsWith('\uFEFF')).toBe(true);
+      expect(csv).toContain('Số lượng khu phố trực thuộc,0');
+      expect(csv).toContain('CHI TIẾT THEO TỪNG KHU PHỐ');
+      expect(csv).toContain('Chưa có khu phố nào trong hệ thống');
+    });
+
+    it('should include warnings when present and escape special characters', () => {
       const reportWithWarnings: PeriodicReportResponseDto = {
         ...mockReport,
         isDataSufficient: false,
         warnings: [
           'Kỳ báo cáo đang diễn ra, số liệu tổng hợp có thể tiếp tục thay đổi đến hết kỳ.',
+          'Dữ liệu "thực tế" chưa đối soát 100%.',
         ],
       };
 
       const csv = generatePeriodicReportCsv(reportWithWarnings);
       expect(csv).toContain('Cần lưu ý / Dữ liệu có thể chưa hoàn tất');
       expect(csv).toContain('Kỳ báo cáo đang diễn ra');
+      expect(csv).toContain('Dữ liệu ""thực tế"" chưa đối soát 100%.');
     });
 
     it('should not contain any person-level or sensitive fields', () => {
