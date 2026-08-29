@@ -795,8 +795,9 @@ describe('Production Release Acceptance Suite', () => {
         pollIntervalMs: 10,
       });
 
-      // Default execution must call build
-      assert.strictEqual(executedCommands.some((c) => c.args.includes('build')), true);
+      // Only the two unique images are built. migrate and sms-worker reuse api.
+      const buildCommand = executedCommands.find((c) => c.args.includes('build'));
+      assert.deepStrictEqual(buildCommand.args.slice(-3), ['build', 'api', 'web']);
     });
 
     it('builds images when build flag is set', async () => {
@@ -825,7 +826,8 @@ describe('Production Release Acceptance Suite', () => {
         pollIntervalMs: 10,
       });
 
-      assert.strictEqual(executedCommands.some((c) => c.args.includes('build')), true);
+      const buildCommand = executedCommands.find((c) => c.args.includes('build'));
+      assert.deepStrictEqual(buildCommand.args.slice(-3), ['build', 'api', 'web']);
     });
 
     it('rejects conflicting build and no-build options', async () => {

@@ -871,7 +871,9 @@ export async function runProductionReleaseAcceptance(options = {}) {
       logger.log('2/5 Building smoke container images...');
       await runner({
         command: 'docker',
-        args: [...composeArgs, 'build'],
+        // migrate and sms-worker reuse the API image. Building every service can
+        // make BuildKit race while exporting the same image tag on Windows.
+        args: [...composeArgs, 'build', 'api', 'web'],
         captureOutput: true,
         timeout: DEFAULT_BUILD_TIMEOUT_MS,
       });
