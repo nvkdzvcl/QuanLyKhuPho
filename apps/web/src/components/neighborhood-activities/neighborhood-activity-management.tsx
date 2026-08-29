@@ -1297,6 +1297,8 @@ export function NeighborhoodActivityManagement({
                   return (
                     <div
                       key={p.id}
+                      role="group"
+                      aria-label={`Người tham gia: ${p.fullName}`}
                       className="p-3 hover:bg-slate-50/80 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                     >
                       <div className="space-y-0.5 min-w-[160px]">

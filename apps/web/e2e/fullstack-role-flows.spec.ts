@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
   ActivityFilterCondition,
+  ActivityRating,
   AnnouncementScope,
   Gender,
   HighestEducation,
@@ -64,6 +65,23 @@ const RESIDENT_PROFILE = {
   ageTo: '35',
   nonMatchingAgeFrom: '60',
   nonMatchingAgeTo: '70',
+};
+
+const NEIGHBORHOOD_ACTIVITY = {
+  month: '2026-08',
+  otherMonth: '2026-07',
+  activityDate: '2026-08-20',
+  name: 'Họp Tổ dân phố định kỳ tháng 8/2026 E2E',
+  updatedName: 'Họp Tổ dân phố định kỳ tháng 8/2026 E2E (Đã đổi lịch)',
+  personInCharge: 'Trưởng ban điều hành KP-01',
+  updatedPersonInCharge: 'Phó ban điều hành KP-01',
+  description: 'Triển khai kế hoạch an ninh trật tự và chuyển đổi số khu phố',
+  updatedDescription:
+    'Triển khai kế hoạch an ninh trật tự, PCCC và chuyển đổi số khu phố',
+  participantNote: 'Tham gia thảo luận đóng góp ý kiến tích cực',
+  rating: ActivityRating.GOOD,
+  emptyActivityName: 'Sinh hoạt hè thiếu nhi KP-01 E2E',
+  emptyActivityDate: '2026-08-28',
 };
 
 const POLITICAL_SOCIAL_PROFILE = {
@@ -658,7 +676,7 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
         page.getByRole('row').filter({ hasText: RESIDENT_PROFILE.fullName }),
       ).toBeVisible({ timeout: 10_000 });
 
-      // 5. Direct handoff to FR-23 activity creation from filtered list
+      // 5. FR-23: Activity creation from filtered list, validation, attendance, edit & monthly retrieval
       const extractToActivityBtn = page.getByRole('button', {
         name: 'Tạo hoạt động từ danh sách',
         exact: true,
@@ -690,14 +708,289 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
         .filter({ hasText: RESIDENT_PROFILE.fullName });
       await expect(candidateLabel.locator('input[type="checkbox"]')).toBeChecked();
 
-      // Cancel/close the activity modal without creating an activity
-      const cancelActivityBtn = activityModal.getByRole('button', {
-        name: 'Hủy',
+      // a. Empty activity name submission shows visible Vietnamese required-name feedback
+      const submitCreateActivityBtn = activityModal.getByRole('button', {
+        name: 'Tạo hoạt động & Trích xuất danh sách',
         exact: true,
       });
-      await expect(cancelActivityBtn).toBeVisible();
-      await cancelActivityBtn.click();
-      await expect(activityModal).not.toBeVisible();
+      await activityModal.getByLabel('Tên hoạt động').fill('   ');
+      await submitCreateActivityBtn.click();
+      await expect(
+        activityModal.getByText('Vui lòng nhập tên hoạt động.'),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // b. Fill valid activity data and create August 2026 activity with RESIDENT_PROFILE
+      await activityModal
+        .getByLabel('Tên hoạt động')
+        .fill(NEIGHBORHOOD_ACTIVITY.name);
+      await activityModal
+        .getByLabel('Ngày diễn ra hoạt động')
+        .fill(NEIGHBORHOOD_ACTIVITY.activityDate);
+      await activityModal
+        .getByLabel('Người phụ trách')
+        .fill(NEIGHBORHOOD_ACTIVITY.personInCharge);
+      await activityModal
+        .getByLabel('Nội dung / Mô tả hoạt động (tùy chọn)')
+        .fill(NEIGHBORHOOD_ACTIVITY.description);
+
+      await submitCreateActivityBtn.click();
+
+      // Verify success feedback toast and modal closure
+      await expect(
+        page.getByText(
+          new RegExp(
+            `Đã tạo hoạt động "${NEIGHBORHOOD_ACTIVITY.name}" với danh sách trích xuất 1 nhân khẩu thành công`,
+            'i',
+          ),
+        ),
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(
+        page.getByRole('heading', { name: 'Tạo Hoạt động Khu Phố Mới' }),
+      ).not.toBeVisible();
+
+      // c. In auto-opened attendance dialog, mark resident present, assign GOOD rating & note, and save
+      const attendanceHeading = page.getByRole('heading', {
+        name: NEIGHBORHOOD_ACTIVITY.name,
+      });
+      const attendanceModal = page.getByRole('dialog').filter({
+        has: attendanceHeading,
+      });
+      await expect(attendanceHeading).toBeVisible({ timeout: 10_000 });
+
+      const participantRow = attendanceModal.getByRole('group', {
+        name: new RegExp(`Người tham gia:\\s*${RESIDENT_PROFILE.fullName}`, 'i'),
+      });
+      await expect(participantRow).toBeVisible();
+
+      // Click "Có mặt" button for this participant
+      const markPresentBtn = participantRow.getByRole('button', {
+        name: 'Có mặt',
+        exact: true,
+      });
+      await markPresentBtn.click();
+      await expect(markPresentBtn).toHaveClass(/bg-emerald-600/);
+
+      // Select GOOD rating and fill contribution note
+      await participantRow
+        .getByRole('combobox', { name: 'Đánh giá' })
+        .selectOption(NEIGHBORHOOD_ACTIVITY.rating);
+      await participantRow
+        .getByPlaceholder('Ghi chú đóng góp...')
+        .fill(NEIGHBORHOOD_ACTIVITY.participantNote);
+
+      // Save attendance & evaluation results
+      const saveAttendanceBtn = attendanceModal.getByRole('button', {
+        name: 'Lưu kết quả điểm danh & đánh giá',
+        exact: true,
+      });
+      await expect(saveAttendanceBtn).toBeEnabled();
+      await saveAttendanceBtn.click();
+
+      await expect(
+        page.getByText(
+          'Đã lưu danh sách điểm danh và đánh giá thành công.',
+        ),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // Close attendance modal
+      const closeAttendanceBtn = attendanceModal.getByRole('button', {
+        name: 'Đóng',
+        exact: true,
+      });
+      await closeAttendanceBtn.click();
+      await expect(attendanceModal).not.toBeVisible();
+
+      // d. Verify activity row shows 1 present out of 1 participant and edit metadata
+      const activityRow = page
+        .getByRole('row')
+        .filter({ hasText: NEIGHBORHOOD_ACTIVITY.name });
+      await expect(activityRow).toBeVisible({ timeout: 10_000 });
+      await expect(
+        activityRow.getByText(NEIGHBORHOOD_ACTIVITY.personInCharge),
+      ).toBeVisible();
+      await expect(activityRow.getByText(/1\s*\/\s*1/)).toBeVisible();
+
+      // Open Edit Metadata modal
+      const editActivityBtn = activityRow.getByRole('button', {
+        name: 'Sửa',
+        exact: true,
+      });
+      await expect(editActivityBtn).toBeVisible();
+      await editActivityBtn.click();
+
+      const editMetadataModal = page.getByRole('dialog');
+      await expect(
+        editMetadataModal.getByRole('heading', {
+          name: 'Chỉnh sửa Thông tin Hoạt động',
+        }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      await editMetadataModal
+        .getByLabel('Tên hoạt động')
+        .fill(NEIGHBORHOOD_ACTIVITY.updatedName);
+      await editMetadataModal
+        .getByLabel('Người phụ trách')
+        .fill(NEIGHBORHOOD_ACTIVITY.updatedPersonInCharge);
+      await editMetadataModal
+        .getByLabel('Mô tả hoạt động')
+        .fill(NEIGHBORHOOD_ACTIVITY.updatedDescription);
+
+      const submitEditBtn = editMetadataModal.getByRole('button', {
+        name: 'Cập nhật thông tin',
+        exact: true,
+      });
+      await expect(submitEditBtn).toBeEnabled();
+      await submitEditBtn.click();
+
+      await expect(
+        page.getByText(
+          `Đã cập nhật thông tin hoạt động "${NEIGHBORHOOD_ACTIVITY.updatedName}" thành công.`,
+          { exact: true },
+        ),
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(editMetadataModal).not.toBeVisible();
+
+      // e. Month picker navigation away and back retrieves updated activity and persisted data
+      const monthPicker = page.getByLabel('Tháng:');
+      await monthPicker.fill(NEIGHBORHOOD_ACTIVITY.otherMonth);
+      await expect(
+        page.getByRole('row').filter({ hasText: NEIGHBORHOOD_ACTIVITY.updatedName }),
+      ).not.toBeVisible();
+
+      await monthPicker.fill(NEIGHBORHOOD_ACTIVITY.month);
+      const updatedActivityRow = page
+        .getByRole('row')
+        .filter({ hasText: NEIGHBORHOOD_ACTIVITY.updatedName });
+      await expect(updatedActivityRow).toBeVisible({ timeout: 10_000 });
+      await expect(
+        updatedActivityRow.getByText(NEIGHBORHOOD_ACTIVITY.updatedPersonInCharge),
+      ).toBeVisible();
+
+      // Reopen detail / attendance dialog and prove persisted metadata, note, rating and roster
+      const openReopenedDetailBtn = updatedActivityRow.getByRole('button', {
+        name: /Điểm danh/i,
+      });
+      await openReopenedDetailBtn.click();
+
+      const reopenedAttendanceModal = page.getByRole('dialog');
+      await expect(
+        reopenedAttendanceModal.getByRole('heading', {
+          name: NEIGHBORHOOD_ACTIVITY.updatedName,
+        }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // Verify persisted metadata summary in modal
+      await expect(
+        reopenedAttendanceModal.getByText(
+          new RegExp(NEIGHBORHOOD_ACTIVITY.updatedDescription, 'i'),
+        ),
+      ).toBeVisible();
+      await expect(
+        reopenedAttendanceModal.getByText(
+          new RegExp(NEIGHBORHOOD_ACTIVITY.updatedPersonInCharge, 'i'),
+        ),
+      ).toBeVisible();
+      await expect(
+        reopenedAttendanceModal.getByText(/Có mặt:\s*1/i),
+      ).toBeVisible();
+
+      // Verify persisted participant rating, note, and attendance
+      const reopenedParticipantRow = reopenedAttendanceModal.getByRole(
+        'group',
+        {
+          name: new RegExp(`Người tham gia:\\s*${RESIDENT_PROFILE.fullName}`, 'i'),
+        },
+      );
+      await expect(reopenedParticipantRow).toBeVisible();
+      await expect(
+        reopenedParticipantRow.getByRole('button', {
+          name: 'Có mặt',
+          exact: true,
+        }),
+      ).toHaveClass(/bg-emerald-600/);
+      await expect(
+        reopenedParticipantRow.getByRole('combobox', { name: 'Đánh giá' }),
+      ).toHaveValue(NEIGHBORHOOD_ACTIVITY.rating);
+      await expect(
+        reopenedParticipantRow.getByPlaceholder('Ghi chú đóng góp...'),
+      ).toHaveValue(NEIGHBORHOOD_ACTIVITY.participantNote);
+
+      // Close reopened modal
+      await reopenedAttendanceModal
+        .getByRole('button', { name: 'Đóng', exact: true })
+        .click();
+      await expect(reopenedAttendanceModal).not.toBeVisible();
+
+      // f. Create second activity with UNDER_18 condition proving no-match warning & empty detail roster
+      const openCreateNewActivityBtn = page.getByRole('button', {
+        name: '+ Tạo hoạt động mới',
+        exact: true,
+      });
+      await expect(openCreateNewActivityBtn).toBeVisible();
+      await openCreateNewActivityBtn.click();
+
+      const secondActivityModal = page.getByRole('dialog');
+      await expect(
+        secondActivityModal.getByRole('heading', {
+          name: 'Tạo Hoạt động Khu Phố Mới',
+        }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      await secondActivityModal
+        .getByLabel('Tên hoạt động')
+        .fill(NEIGHBORHOOD_ACTIVITY.emptyActivityName);
+      await secondActivityModal
+        .getByLabel('Ngày diễn ra hoạt động')
+        .fill(NEIGHBORHOOD_ACTIVITY.emptyActivityDate);
+      await secondActivityModal
+        .getByLabel('Điều kiện trích xuất danh sách tham gia')
+        .selectOption(ActivityFilterCondition.UNDER_18);
+
+      const submitSecondActivityBtn = secondActivityModal.getByRole('button', {
+        name: 'Tạo hoạt động & Trích xuất danh sách',
+        exact: true,
+      });
+      await expect(submitSecondActivityBtn).toBeEnabled();
+      await submitSecondActivityBtn.click();
+
+      // Verify no-match warning feedback
+      await expect(
+        page.getByText(
+          new RegExp(
+            `Đã tạo hoạt động "${NEIGHBORHOOD_ACTIVITY.emptyActivityName}".*Không có nhân khẩu nào phù hợp`,
+            'i',
+          ),
+        ),
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(
+        page.getByRole('heading', { name: 'Tạo Hoạt động Khu Phố Mới' }),
+      ).not.toBeVisible();
+
+      // In auto-opened detail modal, verify empty participant roster and disabled save button
+      const secondDetailHeading = page.getByRole('heading', {
+        name: NEIGHBORHOOD_ACTIVITY.emptyActivityName,
+      });
+      const secondDetailModal = page.getByRole('dialog').filter({
+        has: secondDetailHeading,
+      });
+      await expect(secondDetailHeading).toBeVisible({ timeout: 10_000 });
+      await expect(
+        secondDetailModal.getByText(
+          'Danh sách người tham gia hoạt động này hiện đang trống.',
+        ),
+      ).toBeVisible();
+      await expect(
+        secondDetailModal.getByRole('button', {
+          name: 'Lưu kết quả điểm danh & đánh giá',
+          exact: true,
+        }),
+      ).toBeDisabled();
+
+      // Close second detail modal
+      await secondDetailModal
+        .getByRole('button', { name: 'Đóng', exact: true })
+        .click();
+      await expect(secondDetailModal).not.toBeVisible();
 
       // =======================================================================
       // FR-22: Political & social profile management, validation, upsert & filtering
