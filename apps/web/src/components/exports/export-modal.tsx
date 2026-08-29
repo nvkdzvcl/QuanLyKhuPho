@@ -21,12 +21,63 @@ export interface ExportModalProps {
   filterSummary?: FilterSummaryItem[];
 }
 
-const DATASET_LABELS: Record<ExportDataset, string> = {
+export interface ExportModalState {
+  isOpen: boolean;
+  selectedDataset: ExportDataset;
+  selectedFormat: ExportFormat;
+}
+
+export const DATASET_LABELS: Record<ExportDataset, string> = {
   [ExportDataset.RESIDENTS]: 'Danh sách cư dân',
   [ExportDataset.POLITICAL_SOCIAL]: 'Thông tin Chính trị - Xã hội',
   [ExportDataset.ACTIVITIES]: 'Sổ hoạt động khu phố',
   [ExportDataset.PETITIONS]: 'Danh sách kiến nghị',
 };
+
+export function getInitialExportModalState(
+  dataset: ExportDataset,
+  isOpen = false,
+  format = ExportFormat.CSV,
+): ExportModalState {
+  return {
+    isOpen,
+    selectedDataset: dataset,
+    selectedFormat: format,
+  };
+}
+
+export function resolveExportModalTransition(
+  currentState: ExportModalState,
+  nextProps: { isOpen: boolean; dataset: ExportDataset },
+): ExportModalState {
+  const isOpening = nextProps.isOpen && !currentState.isOpen;
+
+  if (isOpening) {
+    return {
+      isOpen: true,
+      selectedDataset: nextProps.dataset,
+      selectedFormat: ExportFormat.CSV,
+    };
+  }
+
+  return {
+    ...currentState,
+    isOpen: nextProps.isOpen,
+  };
+}
+
+export function getFormatButtonAriaProps(
+  format: ExportFormat,
+  selectedFormat: ExportFormat,
+  isExporting = false,
+) {
+  const isSelected = format === selectedFormat;
+  return {
+    type: 'button' as const,
+    'aria-pressed': isSelected,
+    disabled: isExporting,
+  };
+}
 
 export function ExportModal({
   isOpen,
@@ -37,20 +88,40 @@ export function ExportModal({
   filters,
   filterSummary = [],
 }: ExportModalProps) {
-  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>(
-    ExportFormat.CSV,
+  const [modalState, setModalState] = useState<ExportModalState>(() =>
+    getInitialExportModalState(dataset, isOpen),
   );
-  const [selectedDataset, setSelectedDataset] =
-    useState<ExportDataset>(dataset);
+
+  // Sync state on prop changes (e.g., closed-to-open transition)
+  const nextState = resolveExportModalTransition(modalState, {
+    isOpen,
+    dataset,
+  });
+
+  if (
+    nextState.isOpen !== modalState.isOpen ||
+    nextState.selectedDataset !== modalState.selectedDataset ||
+    nextState.selectedFormat !== modalState.selectedFormat
+  ) {
+    setModalState(nextState);
+  }
+
   const { triggerExport, isExporting, exportError, clearError } = useExport();
 
   const handleExport = async () => {
     clearError();
-    const success = await triggerExport(selectedDataset, {
+    const success = await triggerExport(modalState.selectedDataset, {
       ...filters,
-      format: selectedFormat,
+      format: modalState.selectedFormat,
     });
     if (success) {
+      onClose();
+    }
+  };
+
+  const handleClose = () => {
+    if (!isExporting) {
+      clearError();
       onClose();
     }
   };
@@ -58,12 +129,7 @@ export function ExportModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={() => {
-        if (!isExporting) {
-          clearError();
-          onClose();
-        }
-      }}
+      onClose={handleClose}
       title={title}
       description={
         description ||
@@ -74,7 +140,7 @@ export function ExportModal({
           <Button
             variant="outline"
             size="md"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isExporting}
           >
             Hủy
@@ -125,9 +191,12 @@ export function ExportModal({
           </label>
           <select
             id="export-dataset"
-            value={selectedDataset}
+            value={modalState.selectedDataset}
             onChange={(event) =>
-              setSelectedDataset(event.target.value as ExportDataset)
+              setModalState((prev) => ({
+                ...prev,
+                selectedDataset: event.target.value as ExportDataset,
+              }))
             }
             disabled={isExporting}
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm focus:border-blue-600 focus:outline-none"
@@ -142,21 +211,40 @@ export function ExportModal({
 
         {/* Format Selection */}
         <div className="space-y-2">
-          <label className="block text-xs font-bold text-slate-800">
+          <label
+            id="export-format-label"
+            className="block text-xs font-bold text-slate-800"
+          >
             Chọn định dạng tệp xuất:
           </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div
+            role="group"
+            aria-labelledby="export-format-label"
+            className="grid grid-cols-1 sm:grid-cols-2 gap-2.5"
+          >
             <button
-              type="button"
-              onClick={() => setSelectedFormat(ExportFormat.CSV)}
+              {...getFormatButtonAriaProps(
+                ExportFormat.CSV,
+                modalState.selectedFormat,
+                isExporting,
+              )}
+              onClick={() =>
+                setModalState((prev) => ({
+                  ...prev,
+                  selectedFormat: ExportFormat.CSV,
+                }))
+              }
               className={`flex items-start gap-3 rounded-xl border p-3 text-left transition ${
-                selectedFormat === ExportFormat.CSV
+                modalState.selectedFormat === ExportFormat.CSV
                   ? 'border-blue-600 bg-blue-50/50 ring-2 ring-blue-500/20'
                   : 'border-slate-200 bg-white hover:bg-slate-50'
-              }`}
+              } ${isExporting ? 'cursor-not-allowed opacity-60' : ''}`}
             >
-              <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-slate-300">
-                {selectedFormat === ExportFormat.CSV && (
+              <div
+                aria-hidden="true"
+                className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-slate-300"
+              >
+                {modalState.selectedFormat === ExportFormat.CSV && (
                   <div className="h-2 w-2 rounded-full bg-blue-600" />
                 )}
               </div>
@@ -169,16 +257,28 @@ export function ExportModal({
             </button>
 
             <button
-              type="button"
-              onClick={() => setSelectedFormat(ExportFormat.XLSX)}
+              {...getFormatButtonAriaProps(
+                ExportFormat.XLSX,
+                modalState.selectedFormat,
+                isExporting,
+              )}
+              onClick={() =>
+                setModalState((prev) => ({
+                  ...prev,
+                  selectedFormat: ExportFormat.XLSX,
+                }))
+              }
               className={`flex items-start gap-3 rounded-xl border p-3 text-left transition ${
-                selectedFormat === ExportFormat.XLSX
+                modalState.selectedFormat === ExportFormat.XLSX
                   ? 'border-blue-600 bg-blue-50/50 ring-2 ring-blue-500/20'
                   : 'border-slate-200 bg-white hover:bg-slate-50'
-              }`}
+              } ${isExporting ? 'cursor-not-allowed opacity-60' : ''}`}
             >
-              <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-slate-300">
-                {selectedFormat === ExportFormat.XLSX && (
+              <div
+                aria-hidden="true"
+                className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-slate-300"
+              >
+                {modalState.selectedFormat === ExportFormat.XLSX && (
                   <div className="h-2 w-2 rounded-full bg-blue-600" />
                 )}
               </div>

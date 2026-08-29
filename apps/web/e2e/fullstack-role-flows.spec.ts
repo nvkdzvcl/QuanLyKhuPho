@@ -3,6 +3,7 @@ import {
   ActivityFilterCondition,
   ActivityRating,
   AnnouncementScope,
+  ExportDataset,
   Gender,
   HighestEducation,
   PartyStatus,
@@ -23,6 +24,7 @@ import {
  * 6. Officer inspects ward-wide petition list, exercises status filters, verifies resolved petition, evidence & history; then creates a ward-wide announcement.
  * 7. Leader locks resident account, verifies blocked login, unlocks account, and resident logs in again, verifying durable petition status update and ward announcement in notification fallback and feed, followed by final petition status, note, and chronological timeline.
  * 8. Officer inspects ward overview metrics, drills down into neighborhood details, filters petition categories analytics, and previews/downloads periodic report CSV with absence of sensitive fields.
+ * 9. Leader exercises data exports (FR-25), verifies four dataset launch controls and default CSV format, downloads representative residents CSV with masking and UTF-8 BOM, verifies modal resets to CSV on reopen, and downloads activities XLSX with ZIP signature.
  */
 
 const OFFICER = {
@@ -2370,6 +2372,171 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
 
       // Logout Officer
       await logoutUser(page, OFFICER.fullName);
+    });
+
+    // =========================================================================
+    // STEP 9: Leader exercises data exports (FR-25) downloading residents CSV and activities XLSX
+    // =========================================================================
+    await test.step('9. Leader exercises data exports (FR-25) downloading residents CSV and activities XLSX', async () => {
+      // 1. Leader authenticates
+      await loginWithDevOtp(page, LEADER.phone);
+      await expect(page.getByText('Trưởng khu phố').first()).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText(LEADER.fullName).first()).toBeVisible();
+
+      // 2. Navigate to Reports & Exports section
+      const exportsNavBtn = page
+        .getByRole('navigation', { name: 'Điều hướng quản lý' })
+        .getByRole('button', {
+          name: 'Báo cáo',
+          exact: true,
+        });
+      await expect(exportsNavBtn).toBeVisible({ timeout: 10_000 });
+      await exportsNavBtn.click();
+
+      await expect(
+        page.getByRole('heading', { name: 'Báo cáo & Xuất dữ liệu Khu phố' }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // 3. Verify all four dataset launch controls are present
+      const exportResidentsBtn = page.getByRole('button', {
+        name: 'Xuất danh sách cư dân',
+        exact: true,
+      });
+      const exportPoliticalBtn = page.getByRole('button', {
+        name: 'Xuất danh sách chính trị - XH',
+        exact: true,
+      });
+      const exportActivitiesBtn = page.getByRole('button', {
+        name: 'Xuất sổ hoạt động',
+        exact: true,
+      });
+      const exportPetitionsBtn = page.getByRole('button', {
+        name: 'Xuất danh sách kiến nghị',
+        exact: true,
+      });
+
+      await expect(exportResidentsBtn).toBeVisible();
+      await expect(exportPoliticalBtn).toBeVisible();
+      await expect(exportActivitiesBtn).toBeVisible();
+      await expect(exportPetitionsBtn).toBeVisible();
+
+      // 4. Open export modal for residents dataset
+      await exportResidentsBtn.click();
+
+      const exportModal = page.getByRole('dialog');
+      await expect(
+        exportModal.getByRole('heading', { name: 'Xuất dữ liệu: Danh sách Cư dân' }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // Verify dataset select contains all four dataset options and defaults to residents
+      const datasetSelect = exportModal.getByLabel('Loại dữ liệu xuất:');
+      await expect(datasetSelect).toBeVisible();
+      await expect(datasetSelect).toHaveValue(ExportDataset.RESIDENTS);
+
+      const datasetOptions = datasetSelect.locator('option');
+      await expect(datasetOptions).toHaveCount(4);
+
+      // Verify default selected format is CSV
+      const csvFormatBtn = exportModal.getByRole('button', {
+        name: /CSV \(UTF-8 with BOM\)/i,
+      });
+      const xlsxFormatBtn = exportModal.getByRole('button', {
+        name: /Microsoft Excel \(\.xlsx\)/i,
+      });
+      await expect(csvFormatBtn).toHaveAttribute('aria-pressed', 'true');
+      await expect(xlsxFormatBtn).toHaveAttribute('aria-pressed', 'false');
+
+      // 5. Download residents CSV through UI
+      const csvDownloadPromise = page.waitForEvent('download');
+      const submitExportBtn = exportModal.getByRole('button', {
+        name: 'Tải xuống tệp',
+        exact: true,
+      });
+      await expect(submitExportBtn).toBeEnabled();
+      await submitExportBtn.click();
+
+      const csvDownload = await csvDownloadPromise;
+      expect(csvDownload.suggestedFilename()).toMatch(
+        /^danh-sach-nhan-khau-\d{4}-\d{2}-\d{2}\.csv$/,
+      );
+
+      const csvStream = await csvDownload.createReadStream();
+      expect(csvStream).toBeTruthy();
+      const csvChunks: Buffer[] = [];
+      if (csvStream) {
+        for await (const chunk of csvStream) {
+          csvChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+      }
+      const csvContent = Buffer.concat(csvChunks).toString('utf8');
+
+      // CSV assertions: UTF-8 BOM prefix, expected created resident, masked citizen ID, and sensitive absence
+      expect(csvContent.startsWith('\uFEFF')).toBe(true);
+      expect(csvContent).toContain(RESIDENT_PROFILE.fullName);
+      expect(csvContent).toContain(RESIDENT_PROFILE.householdCode);
+      expect(csvContent).toContain(RESIDENT_PROFILE.updatedOccupation);
+      expect(csvContent).toContain('079******123');
+      expect(csvContent).not.toContain(RESIDENT_PROFILE.citizenId);
+      expect(csvContent).not.toContain(RESIDENT_PROFILE.phone);
+      expect(csvContent).not.toContain(RESIDENT_PROFILE.email);
+      expect(csvContent).not.toContain('otp');
+      expect(csvContent).not.toContain('secret');
+      expect(csvContent).not.toContain('token');
+
+      // Verify modal closed on successful export
+      await expect(exportModal).not.toBeVisible({ timeout: 10_000 });
+
+      // 6. Reopen export modal for a different dataset (Activities) and verify modal resets to CSV
+      await exportActivitiesBtn.click();
+
+      await expect(
+        exportModal.getByRole('heading', { name: 'Xuất dữ liệu: Sổ hoạt động Khu phố' }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      await expect(datasetSelect).toHaveValue(ExportDataset.ACTIVITIES);
+      await expect(csvFormatBtn).toHaveAttribute('aria-pressed', 'true');
+      await expect(xlsxFormatBtn).toHaveAttribute('aria-pressed', 'false');
+
+      // Select XLSX format
+      await xlsxFormatBtn.click();
+      await expect(xlsxFormatBtn).toHaveAttribute('aria-pressed', 'true');
+      await expect(csvFormatBtn).toHaveAttribute('aria-pressed', 'false');
+
+      // 7. Download activities XLSX through UI
+      const xlsxDownloadPromise = page.waitForEvent('download');
+      const submitXlsxBtn = exportModal.getByRole('button', {
+        name: 'Tải xuống tệp',
+        exact: true,
+      });
+      await expect(submitXlsxBtn).toBeEnabled();
+      await submitXlsxBtn.click();
+
+      const xlsxDownload = await xlsxDownloadPromise;
+      expect(xlsxDownload.suggestedFilename()).toMatch(
+        /^so-tay-hoat-dong-(?:\d{4}-\d{2}|\d{4}-\d{2}-\d{2})\.xlsx$/,
+      );
+
+      const xlsxStream = await xlsxDownload.createReadStream();
+      expect(xlsxStream).toBeTruthy();
+      const xlsxChunks: Buffer[] = [];
+      if (xlsxStream) {
+        for await (const chunk of xlsxStream) {
+          xlsxChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+      }
+      const xlsxBuffer = Buffer.concat(xlsxChunks);
+
+      // XLSX assertions: non-empty file and ZIP signature bytes (0x50 0x4B 0x03 0x04)
+      expect(xlsxBuffer.length).toBeGreaterThan(0);
+      expect(xlsxBuffer[0]).toBe(0x50);
+      expect(xlsxBuffer[1]).toBe(0x4b);
+      expect(xlsxBuffer[2]).toBe(0x03);
+      expect(xlsxBuffer[3]).toBe(0x04);
+
+      await expect(exportModal).not.toBeVisible({ timeout: 10_000 });
+
+      // Logout Leader
+      await logoutUser(page, LEADER.fullName);
     });
   });
 });

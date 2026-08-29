@@ -166,6 +166,7 @@ async function bootstrap() {
       'X-Requested-With',
       'X-XSRF-TOKEN',
     ],
+    exposedHeaders: ['Content-Disposition'],
   });
 
   await app.listen(port);
