@@ -3,6 +3,8 @@ import {
   ActivityFilterCondition,
   AnnouncementScope,
   Gender,
+  HighestEducation,
+  PartyStatus,
   PetitionCategory,
 } from '@quanlykhupho/shared-types';
 
@@ -14,7 +16,7 @@ import {
  * Journey flow:
  * 1. Officer authenticates via dev OTP and creates a Leader for KP-01.
  * 2. Resident completes OTP registration for KP-01 and sees pending status.
- * 3. Leader authenticates via dev OTP and approves the pending resident, then creates KP-01 announcement.
+ * 3. Leader authenticates via dev OTP, approves pending resident, exercises resident profile (FR-21/FR-24), activity handoff (FR-23), political-social management (FR-22), and creates KP-01 announcement.
  * 4. Resident logs in via dev OTP, proves in-app notification fallback, comments on announcement, submits primary petition with real in-memory image evidence, and creates and cancels a second reviewing petition with confirmation and history evidence.
  * 5. Leader navigates to Petitions, exercises admin status/category/date filters, opens petition with evidence, advances to PROCESSING, and RESOLVES it with a note; then moderates comment, edits and removes announcement.
  * 6. Officer inspects ward-wide petition list, exercises status filters, verifies resolved petition, evidence & history; then creates a ward-wide announcement.
@@ -62,6 +64,16 @@ const RESIDENT_PROFILE = {
   ageTo: '35',
   nonMatchingAgeFrom: '60',
   nonMatchingAgeTo: '70',
+};
+
+const POLITICAL_SOCIAL_PROFILE = {
+  partyStatus: PartyStatus.PARTY_MEMBER,
+  partyAdmissionDate: '2018-02-03',
+  highestEducation: HighestEducation.BACHELOR,
+  specialty: 'Công nghệ thông tin',
+  officialOccupation: 'Kỹ sư giải pháp số',
+  strengths: 'Chuyển đổi số cộng đồng và kỹ năng tổ chức phong trào',
+  notes: 'Đảng viên trẻ gương mẫu, tích cực tham gia sinh hoạt chi bộ',
 };
 
 const PETITION = {
@@ -686,6 +698,186 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
       await expect(cancelActivityBtn).toBeVisible();
       await cancelActivityBtn.click();
       await expect(activityModal).not.toBeVisible();
+
+      // =======================================================================
+      // FR-22: Political & social profile management, validation, upsert & filtering
+      // =======================================================================
+      // 1. Navigate to Chính trị - Xã hội section
+      const politicalSocialNavBtn = page
+        .getByRole('navigation', { name: 'Điều hướng quản lý' })
+        .getByRole('button', {
+          name: 'Chính trị - Xã hội',
+          exact: true,
+        });
+      await expect(politicalSocialNavBtn).toBeVisible();
+      await politicalSocialNavBtn.click();
+
+      await expect(
+        page.getByRole('heading', {
+          name: 'Thông tin Chính trị - Xã hội Cư dân',
+        }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // 2. Search for the resident created earlier
+      const searchPoliticalInput = page.getByPlaceholder(
+        'Tìm theo họ tên cư dân, mã hộ khẩu...',
+      );
+      await expect(searchPoliticalInput).toBeVisible();
+      await searchPoliticalInput.fill(RESIDENT_PROFILE.fullName);
+
+      const submitPoliticalSearchBtn = page.getByRole('button', {
+        name: 'Tìm kiếm',
+        exact: true,
+      });
+      await expect(submitPoliticalSearchBtn).toBeVisible();
+      await submitPoliticalSearchBtn.click();
+
+      const residentPoliticalRow = page
+        .getByRole('row')
+        .filter({ hasText: RESIDENT_PROFILE.fullName });
+      await expect(residentPoliticalRow).toBeVisible({ timeout: 10_000 });
+      await expect(
+        residentPoliticalRow.getByText('Chưa cập nhật'),
+      ).toBeVisible();
+
+      // 3. Open setup form modal
+      const setupPoliticalBtn = residentPoliticalRow.getByRole('button', {
+        name: 'Thiết lập',
+        exact: true,
+      });
+      await expect(setupPoliticalBtn).toBeVisible();
+      await setupPoliticalBtn.click();
+
+      const politicalModal = page.getByRole('dialog');
+      await expect(
+        politicalModal.getByRole('heading', {
+          name: 'Cập nhật Thông tin Chính trị - Xã hội',
+        }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // 4. Prove party-member date is required by selecting party_member, leaving date empty, and submitting
+      await politicalModal
+        .getByLabel('Tình trạng Đảng')
+        .selectOption(POLITICAL_SOCIAL_PROFILE.partyStatus);
+
+      const savePoliticalBtn = politicalModal.getByRole('button', {
+        name: 'Lưu thông tin',
+        exact: true,
+      });
+      await expect(savePoliticalBtn).toBeVisible();
+      await savePoliticalBtn.click();
+
+      // Assert visible requirement feedback message
+      await expect(
+        politicalModal.getByText(
+          'Ngày vào Đảng là bắt buộc đối với Đảng viên.',
+        ),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // 5. Fill every FR-22 field with valid deterministic non-sensitive values
+      await politicalModal
+        .getByLabel('Ngày vào Đảng')
+        .fill(POLITICAL_SOCIAL_PROFILE.partyAdmissionDate);
+
+      await politicalModal
+        .getByLabel('Trình độ học vấn cao nhất')
+        .selectOption(POLITICAL_SOCIAL_PROFILE.highestEducation);
+
+      await politicalModal
+        .getByLabel('Chuyên môn / Chuyên ngành đào tạo')
+        .fill(POLITICAL_SOCIAL_PROFILE.specialty);
+
+      await politicalModal
+        .getByLabel('Nghề nghiệp / Vị trí công tác chính thức')
+        .fill(POLITICAL_SOCIAL_PROFILE.officialOccupation);
+
+      await politicalModal
+        .getByLabel('Sở trường / Kỹ năng nổi bật')
+        .fill(POLITICAL_SOCIAL_PROFILE.strengths);
+
+      await politicalModal
+        .getByLabel('Ghi chú bổ sung')
+        .fill(POLITICAL_SOCIAL_PROFILE.notes);
+
+      // Submit valid form
+      await savePoliticalBtn.click();
+
+      // Assert success feedback toast and modal closure
+      await expect(
+        page.getByText(
+          new RegExp(
+            `Đã cập nhật thông tin chính trị - xã hội cho cư dân "${RESIDENT_PROFILE.fullName}" thành công`,
+            'i',
+          ),
+        ),
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(politicalModal).not.toBeVisible();
+
+      // 6. Filter by party_member and verify row output
+      const partyStatusFilter = page.getByLabel('Lọc theo tình trạng Đảng');
+      await partyStatusFilter.selectOption(POLITICAL_SOCIAL_PROFILE.partyStatus);
+
+      const filteredPoliticalRow = page
+        .getByRole('row')
+        .filter({ hasText: RESIDENT_PROFILE.fullName });
+      await expect(filteredPoliticalRow).toBeVisible({ timeout: 10_000 });
+      await expect(filteredPoliticalRow.getByText('Đảng viên')).toBeVisible();
+      await expect(
+        filteredPoliticalRow.getByText('Đại học / Cử nhân'),
+      ).toBeVisible();
+      await expect(
+        filteredPoliticalRow.getByText(
+          `${POLITICAL_SOCIAL_PROFILE.specialty} / ${POLITICAL_SOCIAL_PROFILE.officialOccupation}`,
+        ),
+      ).toBeVisible();
+
+      // 7. Reopen modal and verify every persisted FR-22 value
+      const updatePoliticalBtn = filteredPoliticalRow.getByRole('button', {
+        name: 'Cập nhật',
+        exact: true,
+      });
+      await expect(updatePoliticalBtn).toBeVisible();
+      await updatePoliticalBtn.click();
+
+      const reopenedPoliticalModal = page.getByRole('dialog');
+      await expect(
+        reopenedPoliticalModal.getByRole('heading', {
+          name: 'Cập nhật Thông tin Chính trị - Xã hội',
+        }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      await expect(
+        reopenedPoliticalModal.getByLabel('Tình trạng Đảng'),
+      ).toHaveValue(POLITICAL_SOCIAL_PROFILE.partyStatus);
+      await expect(
+        reopenedPoliticalModal.getByLabel('Ngày vào Đảng'),
+      ).toHaveValue(POLITICAL_SOCIAL_PROFILE.partyAdmissionDate);
+      await expect(
+        reopenedPoliticalModal.getByLabel('Trình độ học vấn cao nhất'),
+      ).toHaveValue(POLITICAL_SOCIAL_PROFILE.highestEducation);
+      await expect(
+        reopenedPoliticalModal.getByLabel('Chuyên môn / Chuyên ngành đào tạo'),
+      ).toHaveValue(POLITICAL_SOCIAL_PROFILE.specialty);
+      await expect(
+        reopenedPoliticalModal.getByLabel(
+          'Nghề nghiệp / Vị trí công tác chính thức',
+        ),
+      ).toHaveValue(POLITICAL_SOCIAL_PROFILE.officialOccupation);
+      await expect(
+        reopenedPoliticalModal.getByLabel('Sở trường / Kỹ năng nổi bật'),
+      ).toHaveValue(POLITICAL_SOCIAL_PROFILE.strengths);
+      await expect(
+        reopenedPoliticalModal.getByLabel('Ghi chú bổ sung'),
+      ).toHaveValue(POLITICAL_SOCIAL_PROFILE.notes);
+
+      // Close reopened modal
+      const closePoliticalModalBtn = reopenedPoliticalModal.getByRole('button', {
+        name: 'Hủy',
+        exact: true,
+      });
+      await expect(closePoliticalModalBtn).toBeVisible();
+      await closePoliticalModalBtn.click();
+      await expect(reopenedPoliticalModal).not.toBeVisible();
 
       // Navigate to Leader Announcements section
       const announcementsNavBtn = page
