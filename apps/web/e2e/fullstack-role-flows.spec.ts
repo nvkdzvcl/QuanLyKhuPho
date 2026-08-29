@@ -1,5 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
-import { AnnouncementScope, PetitionCategory } from '@quanlykhupho/shared-types';
+import {
+  ActivityFilterCondition,
+  AnnouncementScope,
+  Gender,
+  PetitionCategory,
+} from '@quanlykhupho/shared-types';
 
 /**
  * Deterministic full-stack multi-role browser journey.
@@ -33,6 +38,30 @@ const RESIDENT = {
   phone: '0903456789',
   fullName: 'Nguyễn Văn Cư Dân',
   address: 'Số 123 Đường Số 1, Khu phố 1',
+};
+
+const RESIDENT_PROFILE = {
+  fullName: 'Phạm Thị Nhân Khẩu E2E',
+  citizenId: '079195000123',
+  birthDate: '1995-06-15',
+  citizenIdIssueDate: '2021-07-20',
+  gender: Gender.FEMALE,
+  placeOfBirth: 'Bệnh viện Từ Dũ',
+  relationshipToHead: 'Chủ hộ',
+  householdCode: 'HK-KP01-888',
+  permanentAddress: 'Số 789 Đường Số 1, Phường Thử Nghiệm, Quận Thử Nghiệm',
+  currentAddress: 'Số 789 Đường Số 1, Phường Thử Nghiệm, TP. Hồ Chí Minh',
+  ward: 'Phường Thử Nghiệm',
+  city: 'TP. Hồ Chí Minh',
+  occupation: 'Kỹ sư phần mềm',
+  updatedOccupation: 'Chuyên gia chuyển đổi số',
+  updatedCurrentAddress: 'Số 789/2 Đường Số 1, Phường Thử Nghiệm, TP. Hồ Chí Minh',
+  phone: '0908765432',
+  email: 'pham.thi.nhankhau.e2e@example.com',
+  ageFrom: '25',
+  ageTo: '35',
+  nonMatchingAgeFrom: '60',
+  nonMatchingAgeTo: '70',
 };
 
 const PETITION = {
@@ -365,6 +394,298 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
           new RegExp(`Đã phê duyệt tài khoản cư dân "${RESIDENT.fullName}" thành công`, 'i'),
         ),
       ).toBeVisible({ timeout: 10_000 });
+
+      // =======================================================================
+      // FR-21 / FR-24 / FR-23: Resident profile creation, edit, combined filters, empty state & activity handoff
+      // =======================================================================
+      // Navigate to Resident Profiles section
+      const residentProfilesNavBtn = page
+        .getByRole('navigation', { name: 'Điều hướng quản lý' })
+        .getByRole('button', {
+          name: 'Hồ sơ dân cư',
+          exact: true,
+        });
+      await expect(residentProfilesNavBtn).toBeVisible();
+      await residentProfilesNavBtn.click();
+
+      await expect(
+        page.getByRole('heading', { name: 'Quản lý Hồ sơ Nhân khẩu' }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // 1. Create complete resident profile
+      const openCreateProfileBtn = page.getByRole('button', {
+        name: '+ Thêm mới nhân khẩu',
+        exact: true,
+      });
+      await expect(openCreateProfileBtn).toBeVisible();
+      await openCreateProfileBtn.click();
+
+      const createProfileModal = page.getByRole('dialog');
+      await expect(
+        createProfileModal.getByRole('heading', { name: 'Thêm mới Hồ sơ Nhân khẩu' }),
+      ).toBeVisible();
+
+      await createProfileModal
+        .getByLabel('Họ và tên cư dân')
+        .fill(RESIDENT_PROFILE.fullName);
+      await createProfileModal
+        .getByLabel('Số Căn cước công dân (12 số)')
+        .fill(RESIDENT_PROFILE.citizenId);
+      await createProfileModal
+        .getByLabel('Ngày sinh')
+        .fill(RESIDENT_PROFILE.birthDate);
+      await createProfileModal
+        .getByLabel('Giới tính')
+        .selectOption(RESIDENT_PROFILE.gender);
+      await createProfileModal
+        .getByLabel('Ngày cấp CCCD')
+        .fill(RESIDENT_PROFILE.citizenIdIssueDate);
+      await createProfileModal
+        .getByLabel('Nơi sinh')
+        .fill(RESIDENT_PROFILE.placeOfBirth);
+      await createProfileModal
+        .getByLabel('Nghề nghiệp')
+        .fill(RESIDENT_PROFILE.occupation);
+      await createProfileModal
+        .getByLabel('Mã số hộ khẩu')
+        .fill(RESIDENT_PROFILE.householdCode);
+      await createProfileModal
+        .getByLabel('Quan hệ với chủ hộ')
+        .selectOption(RESIDENT_PROFILE.relationshipToHead);
+      await createProfileModal
+        .getByLabel('Địa chỉ thường trú')
+        .fill(RESIDENT_PROFILE.permanentAddress);
+      await createProfileModal
+        .getByLabel('Địa chỉ tạm trú / hiện tại (nếu khác thường trú)')
+        .fill(RESIDENT_PROFILE.currentAddress);
+      await createProfileModal
+        .getByLabel('Phường/Xã')
+        .fill(RESIDENT_PROFILE.ward);
+      await createProfileModal
+        .getByLabel('Tỉnh/Thành phố')
+        .fill(RESIDENT_PROFILE.city);
+      await createProfileModal
+        .getByLabel('Số điện thoại liên hệ (tùy chọn)')
+        .fill(RESIDENT_PROFILE.phone);
+      await createProfileModal
+        .getByLabel('Email liên hệ (tùy chọn)')
+        .fill(RESIDENT_PROFILE.email);
+
+      const submitCreateProfileBtn = createProfileModal.getByRole('button', {
+        name: 'Lưu hồ sơ nhân khẩu',
+        exact: true,
+      });
+      await expect(submitCreateProfileBtn).toBeEnabled();
+      await submitCreateProfileBtn.click();
+
+      // Verify creation toast and presence in table
+      await expect(
+        page.getByText(
+          new RegExp(
+            `Đã thêm hồ sơ nhân khẩu "${RESIDENT_PROFILE.fullName}".*thành công`,
+            'i',
+          ),
+        ),
+      ).toBeVisible({ timeout: 10_000 });
+
+      const profileRow = page
+        .getByRole('row')
+        .filter({ hasText: RESIDENT_PROFILE.fullName });
+      await expect(profileRow).toBeVisible({ timeout: 10_000 });
+
+      // 2. Open authorized detail, verify decrypted CCCD, edit occupation/address, and verify persisted values
+      const viewDetailBtn = profileRow.getByRole('button', {
+        name: 'Xem / Sửa',
+        exact: true,
+      });
+      await expect(viewDetailBtn).toBeVisible();
+      await viewDetailBtn.click();
+
+      const profileDetailModal = page.getByRole('dialog');
+      await expect(
+        profileDetailModal.getByRole('heading', {
+          name: new RegExp(`Chi tiết nhân khẩu:\\s*${RESIDENT_PROFILE.fullName}`, 'i'),
+        }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      await expect(
+        profileDetailModal.getByText(RESIDENT_PROFILE.fullName, { exact: true }),
+      ).toBeVisible();
+      await expect(
+        profileDetailModal.getByText(RESIDENT_PROFILE.citizenId, { exact: true }),
+      ).toBeVisible();
+      await expect(
+        profileDetailModal.getByText(RESIDENT_PROFILE.occupation, { exact: true }),
+      ).toBeVisible();
+      await expect(
+        profileDetailModal.getByText(RESIDENT_PROFILE.currentAddress, { exact: true }),
+      ).toBeVisible();
+      await expect(
+        profileDetailModal.getByText(RESIDENT_PROFILE.ward, { exact: true }),
+      ).toBeVisible();
+      await expect(
+        profileDetailModal.getByText(RESIDENT_PROFILE.city, { exact: true }),
+      ).toBeVisible();
+
+      // Trigger edit mode
+      const editProfileBtn = profileDetailModal.getByRole('button', {
+        name: 'Chỉnh sửa hồ sơ',
+        exact: true,
+      });
+      await expect(editProfileBtn).toBeVisible();
+      await editProfileBtn.click();
+
+      await expect(
+        profileDetailModal.getByRole('heading', {
+          name: new RegExp(`Chỉnh sửa hồ sơ:\\s*${RESIDENT_PROFILE.fullName}`, 'i'),
+        }),
+      ).toBeVisible();
+
+      await profileDetailModal
+        .getByLabel('Nghề nghiệp')
+        .fill(RESIDENT_PROFILE.updatedOccupation);
+      await profileDetailModal
+        .getByLabel('Địa chỉ tạm trú / hiện tại')
+        .fill(RESIDENT_PROFILE.updatedCurrentAddress);
+
+      const saveProfileChangesBtn = profileDetailModal.getByRole('button', {
+        name: 'Lưu thay đổi',
+        exact: true,
+      });
+      await expect(saveProfileChangesBtn).toBeEnabled();
+      await saveProfileChangesBtn.click();
+
+      await expect(
+        page.getByText(
+          new RegExp(
+            `Đã cập nhật hồ sơ nhân khẩu "${RESIDENT_PROFILE.fullName}" thành công`,
+            'i',
+          ),
+        ),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // Verify updated values persisted and visible in detail modal
+      await expect(
+        profileDetailModal.getByText(RESIDENT_PROFILE.updatedOccupation, {
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(
+        profileDetailModal.getByText(RESIDENT_PROFILE.updatedCurrentAddress, {
+          exact: true,
+        }),
+      ).toBeVisible();
+
+      // Close detail modal
+      const closeProfileDetailBtn = profileDetailModal.getByRole('button', {
+        name: 'Đóng',
+        exact: true,
+      });
+      await expect(closeProfileDetailBtn).toBeVisible();
+      await closeProfileDetailBtn.click();
+      await expect(profileDetailModal).not.toBeVisible();
+
+      // 3. Combined FR-24 filtering (gender, age range, household relationship, updated occupation, ward)
+      const genderFilterSelect = page.getByLabel('Lọc theo giới tính');
+      await genderFilterSelect.selectOption(RESIDENT_PROFILE.gender);
+
+      const toggleAdvancedFilterBtn = page.getByRole('button', {
+        name: /Bộ lọc nâng cao/i,
+      });
+      await toggleAdvancedFilterBtn.click();
+      await expect(
+        page.getByText('Bộ lọc nâng cao nhân khẩu (kết hợp đồng thời - AND)'),
+      ).toBeVisible();
+
+      await page.getByLabel('Độ tuổi từ').fill(RESIDENT_PROFILE.ageFrom);
+      await page.getByLabel('Độ tuổi đến').fill(RESIDENT_PROFILE.ageTo);
+
+      await page
+        .getByLabel('Lọc theo quan hệ với chủ hộ')
+        .selectOption(RESIDENT_PROFILE.relationshipToHead);
+
+      await page
+        .getByLabel('Lọc theo nghề nghiệp')
+        .fill(RESIDENT_PROFILE.updatedOccupation);
+      await page
+        .getByRole('button', { name: 'Áp dụng lọc nghề nghiệp', exact: true })
+        .click();
+
+      await page
+        .getByLabel('Lọc theo phường xã')
+        .fill(RESIDENT_PROFILE.ward);
+      await page
+        .getByRole('button', { name: 'Áp dụng lọc phường xã', exact: true })
+        .click();
+
+      // Verify created resident is returned
+      await expect(
+        page.getByRole('row').filter({ hasText: RESIDENT_PROFILE.fullName }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // 4. Force no match by altering one condition, verify filtered-empty state, then restore
+      await page.getByLabel('Độ tuổi từ').fill(RESIDENT_PROFILE.nonMatchingAgeFrom);
+      await page.getByLabel('Độ tuổi đến').fill(RESIDENT_PROFILE.nonMatchingAgeTo);
+
+      await expect(
+        page.getByRole('heading', { name: 'Chưa có hồ sơ nhân khẩu nào' }),
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(
+        page.getByText(
+          'Không tìm thấy hồ sơ phù hợp với bộ lọc hiện tại. Thử thay đổi tiêu chí tìm kiếm.',
+        ),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('row').filter({ hasText: RESIDENT_PROFILE.fullName }),
+      ).not.toBeVisible();
+
+      // Restore matching age condition
+      await page.getByLabel('Độ tuổi từ').fill(RESIDENT_PROFILE.ageFrom);
+      await page.getByLabel('Độ tuổi đến').fill(RESIDENT_PROFILE.ageTo);
+      await expect(
+        page.getByRole('row').filter({ hasText: RESIDENT_PROFILE.fullName }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // 5. Direct handoff to FR-23 activity creation from filtered list
+      const extractToActivityBtn = page.getByRole('button', {
+        name: 'Tạo hoạt động từ danh sách',
+        exact: true,
+      });
+      await expect(extractToActivityBtn).toBeVisible();
+      await extractToActivityBtn.click();
+
+      const activityModal = page.getByRole('dialog');
+      await expect(
+        activityModal.getByRole('heading', { name: 'Tạo Hoạt động Khu Phố Mới' }),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // Verify custom selection condition is active and 1 extracted resident announced
+      const conditionSelect = activityModal.getByLabel(
+        'Điều kiện trích xuất danh sách tham gia',
+      );
+      await expect(conditionSelect).toHaveValue(ActivityFilterCondition.CUSTOM);
+
+      await expect(
+        activityModal.getByText(/Đã nhận 1 nhân khẩu từ bộ lọc nâng cao/i),
+      ).toBeVisible();
+      await expect(
+        activityModal.getByText('Chọn nhân khẩu tham gia (1 đã chọn)'),
+      ).toBeVisible();
+
+      // Verify created resident is visibly selected (checked)
+      const candidateLabel = activityModal
+        .locator('label')
+        .filter({ hasText: RESIDENT_PROFILE.fullName });
+      await expect(candidateLabel.locator('input[type="checkbox"]')).toBeChecked();
+
+      // Cancel/close the activity modal without creating an activity
+      const cancelActivityBtn = activityModal.getByRole('button', {
+        name: 'Hủy',
+        exact: true,
+      });
+      await expect(cancelActivityBtn).toBeVisible();
+      await cancelActivityBtn.click();
+      await expect(activityModal).not.toBeVisible();
 
       // Navigate to Leader Announcements section
       const announcementsNavBtn = page

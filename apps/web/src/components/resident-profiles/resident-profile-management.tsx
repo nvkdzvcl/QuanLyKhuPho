@@ -81,6 +81,60 @@ const EDUCATION_FILTER_OPTIONS = [
   { value: HighestEducation.DOCTORATE, label: 'Tiến sĩ' },
 ];
 
+export const RESIDENT_PROFILES_EMPTY_STATE_MESSAGES = {
+  filtered:
+    'Không tìm thấy hồ sơ phù hợp với bộ lọc hiện tại. Thử thay đổi tiêu chí tìm kiếm.',
+  unfiltered:
+    'Bắt đầu lập sổ bộ cư dân bằng cách nhấn nút "Thêm mới nhân khẩu" ở trên.',
+} as const;
+
+export interface ResidentProfileFilterCriteria {
+  search?: string;
+  gender?: string;
+  neighborhoodId?: string;
+  ageFrom?: string | number;
+  ageTo?: string | number;
+  relationshipToHead?: string;
+  partyStatus?: string;
+  minEducation?: string;
+  occupation?: string;
+  ward?: string;
+}
+
+export function hasActiveResidentFilters(
+  filters: ResidentProfileFilterCriteria,
+): boolean {
+  return Boolean(
+    (typeof filters.search === 'string' && filters.search.trim() !== '') ||
+      (typeof filters.gender === 'string' && filters.gender !== '') ||
+      (typeof filters.neighborhoodId === 'string' &&
+        filters.neighborhoodId !== '') ||
+      (filters.ageFrom !== undefined &&
+        filters.ageFrom !== null &&
+        filters.ageFrom !== '') ||
+      (filters.ageTo !== undefined &&
+        filters.ageTo !== null &&
+        filters.ageTo !== '') ||
+      (typeof filters.relationshipToHead === 'string' &&
+        filters.relationshipToHead !== '') ||
+      (typeof filters.partyStatus === 'string' &&
+        filters.partyStatus !== '') ||
+      (typeof filters.minEducation === 'string' &&
+        filters.minEducation !== '') ||
+      (typeof filters.occupation === 'string' &&
+        filters.occupation.trim() !== '') ||
+      (typeof filters.ward === 'string' && filters.ward.trim() !== ''),
+  );
+}
+
+export function getResidentProfilesEmptyExplanation(
+  hasFilters: boolean,
+): string {
+  return hasFilters
+    ? RESIDENT_PROFILES_EMPTY_STATE_MESSAGES.filtered
+    : RESIDENT_PROFILES_EMPTY_STATE_MESSAGES.unfiltered;
+}
+
 export function ResidentProfileManagement({
   user,
   onSeedActivity,
@@ -165,6 +219,8 @@ export function ResidentProfileManagement({
     occupation: '',
     permanentAddress: '',
     currentAddress: '',
+    ward: '',
+    city: '',
     householdCode: '',
     neighborhoodId: isOfficer ? '' : user.neighborhoodId || undefined,
   });
@@ -211,6 +267,19 @@ export function ResidentProfileManagement({
     setActiveWard('');
     setCurrentPage(1);
   };
+
+  const hasActiveFilters = hasActiveResidentFilters({
+    search: activeSearch,
+    gender: selectedGender,
+    neighborhoodId: selectedNeighborhoodId,
+    ageFrom,
+    ageTo,
+    relationshipToHead: selectedRelationship,
+    partyStatus: selectedPartyStatus,
+    minEducation: selectedMinEducation,
+    occupation: activeOccupation,
+    ward: activeWard,
+  });
 
   const activeAdvancedCount = [
     ageFrom !== '',
@@ -346,6 +415,8 @@ export function ResidentProfileManagement({
       occupation: '',
       permanentAddress: '',
       currentAddress: '',
+      ward: '',
+      city: '',
       householdCode: '',
       neighborhoodId: isOfficer
         ? selectedNeighborhoodId || ''
@@ -408,6 +479,8 @@ export function ResidentProfileManagement({
         currentAddress: createForm.currentAddress?.trim() || undefined,
         placeOfBirth: createForm.placeOfBirth?.trim() || undefined,
         occupation: createForm.occupation?.trim() || undefined,
+        ward: createForm.ward?.trim() || undefined,
+        city: createForm.city?.trim() || undefined,
       });
 
       setToastFeedback({
@@ -442,6 +515,8 @@ export function ResidentProfileManagement({
       occupation: detail.occupation || '',
       permanentAddress: detail.permanentAddress,
       currentAddress: detail.currentAddress || '',
+      ward: detail.ward || '',
+      city: detail.city || '',
       householdCode: detail.household?.code || '',
       neighborhoodId: detail.neighborhoodId,
     });
@@ -491,6 +566,8 @@ export function ResidentProfileManagement({
           currentAddress: editForm.currentAddress?.trim() || null,
           placeOfBirth: editForm.placeOfBirth?.trim() || null,
           occupation: editForm.occupation?.trim() || null,
+          ward: editForm.ward?.trim() || null,
+          city: editForm.city?.trim() || null,
         },
       });
 
@@ -650,7 +727,7 @@ export function ResidentProfileManagement({
                   )}
                 </Button>
 
-                {(activeSearch || selectedGender || selectedNeighborhoodId || activeAdvancedCount > 0) && (
+                {hasActiveFilters && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -689,6 +766,7 @@ export function ResidentProfileManagement({
                     <div className="flex items-center gap-1.5">
                       <input
                         type="number"
+                        aria-label="Độ tuổi từ"
                         min="0"
                         max="150"
                         placeholder="Từ"
@@ -702,6 +780,7 @@ export function ResidentProfileManagement({
                       <span className="text-slate-400">-</span>
                       <input
                         type="number"
+                        aria-label="Độ tuổi đến"
                         min="0"
                         max="150"
                         placeholder="Đến"
@@ -721,6 +800,7 @@ export function ResidentProfileManagement({
                       Quan hệ với chủ hộ
                     </label>
                     <select
+                      aria-label="Lọc theo quan hệ với chủ hộ"
                       value={selectedRelationship}
                       onChange={(e) => {
                         setSelectedRelationship(e.target.value);
@@ -786,6 +866,7 @@ export function ResidentProfileManagement({
                     </label>
                     <div className="flex gap-1.5">
                       <input
+                        aria-label="Lọc theo nghề nghiệp"
                         placeholder="VD: Kỹ sư, Bác sĩ..."
                         value={occupationQuery}
                         onChange={(e) => setOccupationQuery(e.target.value)}
@@ -800,6 +881,7 @@ export function ResidentProfileManagement({
                       />
                       <Button
                         type="button"
+                        aria-label="Áp dụng lọc nghề nghiệp"
                         variant="secondary"
                         size="sm"
                         onClick={() => {
@@ -820,6 +902,7 @@ export function ResidentProfileManagement({
                     </label>
                     <div className="flex gap-1.5">
                       <input
+                        aria-label="Lọc theo phường xã"
                         placeholder="VD: Phường Bến Nghé..."
                         value={wardQuery}
                         onChange={(e) => setWardQuery(e.target.value)}
@@ -834,6 +917,7 @@ export function ResidentProfileManagement({
                       />
                       <Button
                         type="button"
+                        aria-label="Áp dụng lọc phường xã"
                         variant="secondary"
                         size="sm"
                         onClick={() => {
@@ -892,9 +976,7 @@ export function ResidentProfileManagement({
                 Chưa có hồ sơ nhân khẩu nào
               </h4>
               <p className="mt-1 text-sm text-slate-500 max-w-md mx-auto">
-                {activeSearch || selectedGender || selectedNeighborhoodId
-                  ? 'Không tìm thấy hồ sơ phù hợp với bộ lọc hiện tại. Thử thay đổi tiêu chí tìm kiếm.'
-                  : 'Bắt đầu lập sổ bộ cư dân bằng cách nhấn nút "Thêm mới nhân khẩu" ở trên.'}
+                {getResidentProfilesEmptyExplanation(hasActiveFilters)}
               </p>
             </div>
           ) : (
@@ -1237,6 +1319,26 @@ export function ResidentProfileManagement({
                 })
               }
             />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input
+                label="Phường/Xã"
+                placeholder="Ví dụ: Phường Bến Nghé"
+                value={createForm.ward || ''}
+                onChange={(e) =>
+                  setCreateForm({ ...createForm, ward: e.target.value })
+                }
+              />
+
+              <Input
+                label="Tỉnh/Thành phố"
+                placeholder="Ví dụ: TP. Hồ Chí Minh"
+                value={createForm.city || ''}
+                onChange={(e) =>
+                  setCreateForm({ ...createForm, city: e.target.value })
+                }
+              />
+            </div>
           </div>
 
           {/* Contact Details */}
@@ -1464,6 +1566,26 @@ export function ResidentProfileManagement({
                     })
                   }
                 />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input
+                    label="Phường/Xã"
+                    placeholder="Ví dụ: Phường Bến Nghé"
+                    value={editForm.ward || ''}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, ward: e.target.value })
+                    }
+                  />
+
+                  <Input
+                    label="Tỉnh/Thành phố"
+                    placeholder="Ví dụ: TP. Hồ Chí Minh"
+                    value={editForm.city || ''}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, city: e.target.value })
+                    }
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1589,6 +1711,14 @@ export function ResidentProfileManagement({
                       <span>{profileDetail.currentAddress}</span>
                     </div>
                   )}
+                  <div>
+                    <span className="text-slate-400 block">Phường/Xã:</span>
+                    <span>{profileDetail.ward || 'Chưa cập nhật'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Tỉnh/Thành phố:</span>
+                    <span>{profileDetail.city || 'Chưa cập nhật'}</span>
+                  </div>
                 </div>
               </div>
 
