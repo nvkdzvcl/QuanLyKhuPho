@@ -263,14 +263,16 @@ export function CreatePetitionModal({
                   key={index}
                   className="relative group rounded-xl border border-slate-200 overflow-hidden bg-slate-100 p-1"
                 >
-                  <Image
-                    src={preview.url}
-                    alt={preview.name}
-                    width={200}
-                    height={80}
-                    unoptimized
-                    className="h-20 w-full object-cover rounded-lg"
-                  />
+                  <div className="relative h-20 w-full">
+                    <Image
+                      src={preview.url}
+                      alt={preview.name}
+                      fill
+                      sizes="(min-width: 640px) 33vw, 50vw"
+                      unoptimized
+                      className="object-cover rounded-lg"
+                    />
+                  </div>
                   <div className="mt-1 flex items-center justify-between px-1">
                     <span className="text-[10px] text-slate-600 truncate max-w-[80px]">
                       {preview.name}
