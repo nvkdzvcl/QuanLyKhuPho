@@ -5,51 +5,72 @@ import { Badge } from '@quanlykhupho/ui';
 import { PetitionCategory, PetitionStatus } from '@quanlykhupho/shared-types';
 import { AppIcon } from '../app-icon';
 
+export function getPetitionStatusLabel(
+  status?: PetitionStatus | string | null,
+): string {
+  switch (status) {
+    case PetitionStatus.REVIEWING:
+      return 'Chờ tiếp nhận';
+    case PetitionStatus.PROCESSING:
+      return 'Đang xử lý';
+    case PetitionStatus.RESOLVED:
+      return 'Đã giải quyết';
+    case PetitionStatus.REJECTED:
+      return 'Bị từ chối';
+    case PetitionStatus.CANCELLED:
+      return 'Đã hủy';
+    default:
+      return 'Không xác định';
+  }
+}
+
 interface PetitionStatusBadgeProps {
   status: PetitionStatus;
   className?: string;
 }
+
 export function PetitionStatusBadge({ status, className }: PetitionStatusBadgeProps) {
+  const label = getPetitionStatusLabel(status);
   switch (status) {
     case PetitionStatus.REVIEWING:
       return (
         <Badge variant="warning" className={className}>
           <AppIcon name="clock" className="h-3 w-3 inline mr-1" />
-          <span>Chờ tiếp nhận</span>
+          <span>{label}</span>
         </Badge>
       );
     case PetitionStatus.PROCESSING:
       return (
         <Badge variant="info" className={className}>
           <AppIcon name="settings" className="h-3 w-3 inline mr-1" />
-          <span>Đang xử lý</span>
+          <span>{label}</span>
         </Badge>
       );
     case PetitionStatus.RESOLVED:
       return (
         <Badge variant="success" className={className}>
           <AppIcon name="check" className="h-3 w-3 inline mr-1" />
-          <span>Đã giải quyết</span>
+          <span>{label}</span>
         </Badge>
       );
     case PetitionStatus.REJECTED:
       return (
         <Badge variant="destructive" className={className}>
           <AppIcon name="x" className="h-3 w-3 inline mr-1" />
-          <span>Bị từ chối</span>
+          <span>{label}</span>
         </Badge>
       );
     case PetitionStatus.CANCELLED:
       return (
         <Badge variant="default" className={className}>
           <AppIcon name="ban" className="h-3 w-3 inline mr-1" />
-          <span>Đã hủy</span>
+          <span>{label}</span>
         </Badge>
       );
     default:
       return (
         <Badge variant="default" className={className}>
-          {status}
+          {label}
         </Badge>
       );
   }

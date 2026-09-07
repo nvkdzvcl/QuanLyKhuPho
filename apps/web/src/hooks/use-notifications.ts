@@ -29,6 +29,7 @@ export function useNotifications(page = 1, limit = 20) {
       );
       return res.data.data;
     },
+    refetchInterval: 30000,
   });
 }
 

@@ -6,6 +6,7 @@ import {
   PetitionStatus,
   UserRole,
 } from '@quanlykhupho/shared-types';
+import { getPetitionStatusLabel } from '../src/components/petitions/petition-status-badge';
 
 describe('Web Petitions Contracts & Workflow', () => {
   it('should conform to PetitionDto and PetitionDetailDto contracts', () => {
@@ -88,5 +89,21 @@ describe('Web Petitions Contracts & Workflow', () => {
 
     expect(petitionDetail.history.length).toBe(2);
     expect(petitionDetail.history[1]?.toStatus).toBe(PetitionStatus.PROCESSING);
+  });
+
+  describe('getPetitionStatusLabel', () => {
+    it('should map all PetitionStatus enum values to Vietnamese labels', () => {
+      expect(getPetitionStatusLabel(PetitionStatus.REVIEWING)).toBe('Chờ tiếp nhận');
+      expect(getPetitionStatusLabel(PetitionStatus.PROCESSING)).toBe('Đang xử lý');
+      expect(getPetitionStatusLabel(PetitionStatus.RESOLVED)).toBe('Đã giải quyết');
+      expect(getPetitionStatusLabel(PetitionStatus.REJECTED)).toBe('Bị từ chối');
+      expect(getPetitionStatusLabel(PetitionStatus.CANCELLED)).toBe('Đã hủy');
+    });
+
+    it('should fallback to Vietnamese text for unknown or missing status values', () => {
+      expect(getPetitionStatusLabel(undefined)).toBe('Không xác định');
+      expect(getPetitionStatusLabel(null)).toBe('Không xác định');
+      expect(getPetitionStatusLabel('unknown_status')).toBe('Không xác định');
+    });
   });
 });

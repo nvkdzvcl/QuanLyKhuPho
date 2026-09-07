@@ -10,7 +10,6 @@ import {
 } from '@quanlykhupho/shared-types';
 import { useAnnouncementFeed } from '../../hooks/use-announcements';
 import { usePetitions } from '../../hooks/use-petitions';
-import { useUnreadCount } from '../../hooks/use-notifications';
 import { PetitionStatusBadge } from '../petitions/petition-status-badge';
 
 interface ResidentOverviewProps {
@@ -126,12 +125,11 @@ export function ResidentOverview({ user, onNavigateSection }: ResidentOverviewPr
   const { data: reviewing } = usePetitions({ status: PetitionStatus.REVIEWING, page: 1, limit: 1 });
   const { data: processing } = usePetitions({ status: PetitionStatus.PROCESSING, page: 1, limit: 1 });
   const { data: resolved } = usePetitions({ status: PetitionStatus.RESOLVED, page: 1, limit: 1 });
-  const { data: unread } = useUnreadCount();
   const activePetitionCount = (reviewing?.total || 0) + (processing?.total || 0);
   const latestPetition = petitions?.items[0];
 
   const statCards = [
-    { label: 'thông báo mới', value: unread?.unreadCount || 0, icon: 'announcement' as const, tone: 'bg-blue-50 text-blue-600', action: 'announcements' },
+    { label: 'bài đăng trên bảng tin', value: announcements?.total || 0, icon: 'announcement' as const, tone: 'bg-blue-50 text-blue-600', action: 'announcements' },
     { label: 'kiến nghị đang xử lý', value: activePetitionCount, icon: 'petition' as const, tone: 'bg-orange-50 text-orange-600', action: 'petitions' },
     { label: 'phản hồi đã nhận', value: resolved?.total || 0, icon: 'response' as const, tone: 'bg-emerald-50 text-emerald-600', action: 'petitions' },
   ];

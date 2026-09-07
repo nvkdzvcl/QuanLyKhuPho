@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Badge, Button } from '@quanlykhupho/ui';
+import { Alert, Badge, Button } from '@quanlykhupho/ui';
 import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
@@ -10,7 +10,8 @@ import {
   useUnreadCount,
 } from '../../hooks/use-notifications';
 import { AnnouncementDetailModal } from '../announcements/announcement-detail-modal';
-import { UserDto } from '@quanlykhupho/shared-types';
+import { PetitionDetailModal } from '../petitions/petition-detail-modal';
+import { NotificationDto, NotificationType, UserDto } from '@quanlykhupho/shared-types';
 import { AppIcon } from '../app-icon';
 
 interface NotificationBellProps {
@@ -20,12 +21,19 @@ interface NotificationBellProps {
 export function NotificationBell({ currentUser }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeAnnouncementId, setActiveAnnouncementId] = useState<string | null>(null);
+  const [activePetitionId, setActivePetitionId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const { data: unreadData } = useUnreadCount();
+  const { data: unreadData, refetch: refetchUnreadCount } = useUnreadCount();
   const unreadCount = unreadData?.unreadCount || 0;
 
-  const { data: notifData, isLoading } = useNotifications(1, 15);
+  const {
+    data: notifData,
+    isLoading,
+    isError,
+    refetch,
+  } = useNotifications(1, 15);
   const markReadMutation = useMarkNotificationRead();
   const markAllReadMutation = useMarkAllNotificationsRead();
 
@@ -55,13 +63,43 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
     };
   }, [isOpen]);
 
-  const handleNotificationClick = async (notif: { id: string; isRead: boolean; referenceId?: string | null }) => {
-    if (!notif.isRead) {
-      await markReadMutation.mutateAsync(notif.id);
+  // Fetch fresh notifications when dropdown opens
+  useEffect(() => {
+    if (isOpen) {
+      void refetch();
+      void refetchUnreadCount();
     }
+  }, [isOpen, refetch, refetchUnreadCount]);
+
+  const handleNotificationClick = async (notif: NotificationDto) => {
+    setActionError(null);
     if (notif.referenceId) {
-      setActiveAnnouncementId(notif.referenceId);
-      setIsOpen(false);
+      if (notif.type === NotificationType.PETITION) {
+        setActivePetitionId(notif.referenceId);
+        setIsOpen(false);
+      } else if (
+        notif.type === NotificationType.ANNOUNCEMENT ||
+        notif.type === NotificationType.COMMENT
+      ) {
+        setActiveAnnouncementId(notif.referenceId);
+        setIsOpen(false);
+      }
+    }
+    if (!notif.isRead) {
+      try {
+        await markReadMutation.mutateAsync(notif.id);
+      } catch {
+        setActionError('Không thể đánh dấu đã đọc thông báo. Vui lòng thử lại sau.');
+      }
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    setActionError(null);
+    try {
+      await markAllReadMutation.mutateAsync();
+    } catch {
+      setActionError('Không thể đánh dấu tất cả đã đọc. Vui lòng thử lại sau.');
     }
   };
 
@@ -81,6 +119,7 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         aria-label="Thông báo trong ứng dụng"
+        aria-expanded={isOpen}
         className="relative rounded-xl border border-slate-200 bg-slate-50 p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
         <svg
@@ -118,7 +157,7 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
             {unreadCount > 0 && (
               <button
                 type="button"
-                onClick={() => markAllReadMutation.mutate()}
+                onClick={handleMarkAllRead}
                 disabled={markAllReadMutation.isPending}
                 className="text-[11px] font-semibold text-blue-600 hover:text-blue-800"
               >
@@ -164,16 +203,29 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
               <div className="py-8 text-center text-xs text-slate-400">
                 Đang tải thông báo...
               </div>
+            ) : isError ? (
+              <div className="py-6 text-center text-xs text-red-600 space-y-2">
+                <p>Không thể tải danh sách thông báo.</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void refetch()}
+                  className="text-[11px] py-1 px-2.5 mx-auto"
+                >
+                  Thử lại
+                </Button>
+              </div>
             ) : notifications.length === 0 ? (
               <div className="py-8 text-center text-xs text-slate-400">
                 Không có thông báo nào.
               </div>
             ) : (
               notifications.map((item) => (
-                <div
+                <button
+                  type="button"
                   key={item.id}
-                  onClick={() => handleNotificationClick(item)}
-                  className={`p-2.5 transition cursor-pointer hover:bg-slate-50 rounded-xl ${
+                  onClick={() => void handleNotificationClick(item)}
+                  className={`w-full text-left p-2.5 transition cursor-pointer hover:bg-slate-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     !item.isRead ? 'bg-blue-50/50' : ''
                   }`}
                 >
@@ -195,10 +247,20 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
                   <p className="mt-1 text-[10px] text-slate-400">
                     {new Date(item.createdAt).toLocaleString('vi-VN')}
                   </p>
-                </div>
+                </button>
               ))
             )}
           </div>
+        </div>
+      )}
+
+      {actionError && (
+        <div className="fixed bottom-24 right-4 z-[100] w-[calc(100vw-2rem)] max-w-sm">
+          <Alert
+            variant="error"
+            message={actionError}
+            onClose={() => setActionError(null)}
+          />
         </div>
       )}
 
@@ -207,6 +269,15 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
         <AnnouncementDetailModal
           announcementId={activeAnnouncementId}
           onClose={() => setActiveAnnouncementId(null)}
+          currentUser={currentUser}
+        />
+      )}
+
+      {/* Target Petition Detail Modal if clicked */}
+      {activePetitionId && (
+        <PetitionDetailModal
+          petitionId={activePetitionId}
+          onClose={() => setActivePetitionId(null)}
           currentUser={currentUser}
         />
       )}

@@ -23,6 +23,7 @@ import { getErrorMessage } from '../../lib/api-client';
 import {
   PetitionCategoryBadge,
   PetitionStatusBadge,
+  getPetitionStatusLabel,
 } from './petition-status-badge';
 import { AppIcon } from '../app-icon';
 
@@ -291,7 +292,7 @@ export function PetitionDetailModal({
                   Thao tác xử lý theo thẩm quyền
                 </h4>
                 <span className="text-xs text-slate-500">
-                  Trạng thái hiện tại: <strong className="text-slate-800">{petition.status}</strong>
+                  Trạng thái hiện tại: <strong className="text-slate-800">{getPetitionStatusLabel(petition.status)}</strong>
                 </span>
               </div>
 
@@ -368,7 +369,7 @@ export function PetitionDetailModal({
                     petition.status,
                   ) && (
                     <p className="text-xs text-slate-500 italic">
-                      Kiến nghị này đã ở trạng thái kết thúc ({petition.status}) và không thể thay đổi thêm.
+                      Kiến nghị này đã ở trạng thái kết thúc ({getPetitionStatusLabel(petition.status)}) và không thể thay đổi thêm.
                     </p>
                   )}
                 </div>
@@ -396,7 +397,7 @@ export function PetitionDetailModal({
                             <PetitionStatusBadge status={step.toStatus} />
                             {step.fromStatus && (
                               <span className="text-xs text-slate-400">
-                                (từ {step.fromStatus})
+                                (từ {getPetitionStatusLabel(step.fromStatus)})
                               </span>
                             )}
                           </div>

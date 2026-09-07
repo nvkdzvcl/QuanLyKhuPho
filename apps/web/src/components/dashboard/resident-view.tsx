@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@quanlykhupho/ui';
 import { AccountStatus, type UserDto, UserRole } from '@quanlykhupho/shared-types';
-import { useUnreadCount } from '../../hooks/use-notifications';
 import { useAuth } from '../../lib/auth-context';
 import { AnnouncementFeed } from '../announcements/announcement-feed';
 import { CreatePetitionModal } from '../petitions/create-petition-modal';
@@ -71,9 +70,8 @@ function ResidentAccount({ user }: ResidentViewProps) {
 export function ResidentView({ user }: ResidentViewProps) {
   const [activeSection, setActiveSection] = useState<string>('overview');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const { data: unread } = useUnreadCount();
   const currentSection = normalizeSectionForRole(UserRole.RESIDENT, activeSection);
-  const navItems = getResidentNavigationItems({ unreadAnnouncementsCount: unread?.unreadCount || 0 });
+  const navItems = getResidentNavigationItems();
 
   const closeCreatePetition = () => setActiveSection('petitions');
 
