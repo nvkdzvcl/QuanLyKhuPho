@@ -171,6 +171,7 @@ model Neighborhood {
   households       Household[]
   residentProfiles ResidentProfile[]
   activities       NeighborhoodActivity[]
+  phoneAccessLogs  AccountPhoneAccessLog[]
 
   @@unique([ward, name])
   @@map("neighborhoods")
@@ -199,6 +200,8 @@ model Account {
   petitions         Petition[]             @relation("PetitionAuthor")
   petitionHistories PetitionHistory[]      @relation("PetitionHistoryAuthor")
   createdActivities NeighborhoodActivity[] @relation("ActivityCreator")
+  phoneAccessLogsAsActor  AccountPhoneAccessLog[] @relation("PhoneAccessActor")
+  phoneAccessLogsAsTarget AccountPhoneAccessLog[] @relation("PhoneAccessTarget")
 
   @@index([role, status])
   @@index([neighborhoodId, status])
@@ -466,4 +469,22 @@ model NeighborhoodActivityParticipant {
   @@index([residentProfileId])
   @@index([activityId, attendance])
   @@map("neighborhood_activity_participants")
+}
+
+model AccountPhoneAccessLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  actorAccountId  String   @map("actor_account_id") @db.Uuid
+  targetAccountId String   @map("target_account_id") @db.Uuid
+  neighborhoodId  String?  @map("neighborhood_id") @db.Uuid
+  actorRole       Role     @map("actor_role")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  actorAccount Account       @relation("PhoneAccessActor", fields: [actorAccountId], references: [id], onDelete: Restrict)
+  targetAccount Account      @relation("PhoneAccessTarget", fields: [targetAccountId], references: [id], onDelete: Restrict)
+  neighborhood Neighborhood? @relation(fields: [neighborhoodId], references: [id], onDelete: Restrict)
+
+  @@index([actorAccountId, createdAt])
+  @@index([targetAccountId, createdAt])
+  @@index([neighborhoodId, createdAt])
+  @@map("account_phone_access_logs")
 }

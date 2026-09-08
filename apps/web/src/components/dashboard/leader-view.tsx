@@ -46,6 +46,7 @@ import {
 } from '../neighborhood-activities/neighborhood-activity-management';
 import { ExportModal } from '../exports/export-modal';
 import { AppIcon } from '../app-icon';
+import { ResidentAccountDetails } from './pending-resident-verification';
 
 interface LeaderViewProps {
   user: UserDto;
@@ -331,7 +332,8 @@ export function LeaderView({ user }: LeaderViewProps) {
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0 border-t border-slate-200 pt-3 sm:border-t-0 sm:pt-0">
+                      <div className="flex flex-wrap items-center gap-2 shrink-0 border-t border-slate-200 pt-3 sm:border-t-0 sm:pt-0">
+                        <ResidentAccountDetails resident={res} />
                         <Button
                           variant="primary"
                           size="sm"
@@ -504,7 +506,8 @@ export function LeaderView({ user }: LeaderViewProps) {
                           </p>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0 border-t border-slate-200 pt-3 sm:border-t-0 sm:pt-0">
+                        <div className="flex flex-wrap items-center gap-2 shrink-0 border-t border-slate-200 pt-3 sm:border-t-0 sm:pt-0">
+                          <ResidentAccountDetails resident={res} />
                           {isActive && (
                             <Button
                               variant="outline"

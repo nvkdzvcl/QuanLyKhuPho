@@ -14,6 +14,7 @@ describe('UsersController', () => {
     lockResident: ReturnType<typeof vi.fn>;
     unlockResident: ReturnType<typeof vi.fn>;
     createLeader: ReturnType<typeof vi.fn>;
+    revealResidentPhone: ReturnType<typeof vi.fn>;
   };
 
   const leaderUser: UserDto = {
@@ -47,6 +48,7 @@ describe('UsersController', () => {
       lockResident: vi.fn().mockResolvedValue(sampleResident),
       unlockResident: vi.fn().mockResolvedValue(sampleResident),
       createLeader: vi.fn().mockResolvedValue(leaderUser),
+      revealResidentPhone: vi.fn().mockResolvedValue({ phoneNumber: '+84911111111' }),
     };
 
     controller = new UsersController(usersService as unknown as UsersService);
@@ -140,6 +142,17 @@ describe('UsersController', () => {
       const result = await controller.createLeader(dto, leaderUser);
       expect(usersService.createLeader).toHaveBeenCalledWith(dto, leaderUser);
       expect(result).toEqual(leaderUser);
+    });
+  });
+
+  describe('revealResidentPhone', () => {
+    it('delegates to usersService.revealResidentPhone', async () => {
+      const result = await controller.revealResidentPhone('res-1', leaderUser);
+      expect(usersService.revealResidentPhone).toHaveBeenCalledWith(
+        'res-1',
+        leaderUser,
+      );
+      expect(result).toEqual({ phoneNumber: '+84911111111' });
     });
   });
 });

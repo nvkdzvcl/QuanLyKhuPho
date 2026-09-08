@@ -37,3 +37,7 @@ export interface ManagedResidentQueryDto {
   status?: ManagedResidentStatus;
   neighborhoodId?: string;
 }
+
+export interface ResidentPhoneDto {
+  phoneNumber: string;
+}

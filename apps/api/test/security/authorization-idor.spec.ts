@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
+import { PrismaClient } from '@prisma/client';
 import {
   AccountStatus,
   type ApiErrorEnvelope,
@@ -807,6 +808,125 @@ test.describe.serial('Real-Stack Security Authorization & IDOR Acceptance Gate',
     ).toBe(true);
   });
 
+  test('Pending, active and locked phone verification enforces roles, scope, CSRF, no-store and immutable audit', async () => {
+    const databaseUrl = process.env.E2E_DATABASE_URL || process.env.DATABASE_URL ||
+      'postgresql://postgres:postgres@localhost:5433/quanlykhupho?schema=qlkp_e2e';
+    const parsed = new URL(databaseUrl);
+    expect(['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)).toBe(true);
+    expect(parsed.searchParams.get('schema')).toBe('qlkp_e2e');
+    const db = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
+    const pendingPath = `/api/users/${pendingResidentUser.id}/reveal-phone`;
+    const activePath = `/api/users/${resident2User.id}/reveal-phone`;
+    try {
+      const beforeCount = await db.accountPhoneAccessLog.count();
+
+      // Denials: unauthenticated, wrong role, cross-neighborhood, CSRF, invalid UUID
+      await assertErrorResponse(await anonContext.post(pendingPath), 401);
+      await assertErrorResponse(await resident1Context.post(pendingPath), 403);
+      await assertErrorResponse(await leader1Context.post(pendingPath), 403);
+      await assertErrorResponse(await resident1Context.post(activePath), 403);
+      await assertErrorResponse(await leader1Context.post(activePath), 403);
+      await assertErrorResponse(await leader2Context.post(pendingPath, { headers: { Origin: 'https://untrusted.invalid' } }), 403, ErrorCode.CSRF_ERROR);
+      await assertErrorResponse(await leader2Context.post('/api/users/not-a-uuid/reveal-phone'), 400);
+      expect(await db.accountPhoneAccessLog.count()).toBe(beforeCount);
+
+      // Pending target: Leader 2 and Officer permitted
+      for (const context of [leader2Context, officerContext]) {
+        const response = await context.post(pendingPath);
+        expect(response.status()).toBe(200);
+        expect(response.headers()['cache-control']).toContain('no-store');
+        const body = await response.json() as ApiResponseEnvelope<{ phoneNumber: string }>;
+        expect(Object.keys(body.data)).toEqual(['phoneNumber']);
+        expect(/^\+?\d{10,12}$/.test(body.data.phoneNumber)).toBe(true);
+        const me = await context.get('/api/auth/me');
+        const meBody = await me.json() as ApiResponseEnvelope<CurrentUserResponseDto>;
+        const log = await db.accountPhoneAccessLog.findFirstOrThrow({
+          where: { actorAccountId: meBody.data.user.id, targetAccountId: pendingResidentUser.id },
+          orderBy: { createdAt: 'desc' },
+        });
+        expect(log.actorRole).toBe(meBody.data.user.role);
+        expect(log.neighborhoodId).toBe(neighborhoodKp02.id);
+        expect(JSON.stringify(log).includes(body.data.phoneNumber)).toBe(false);
+        expect(Object.keys(log).sort()).toEqual(['id', 'actorAccountId', 'targetAccountId', 'neighborhoodId', 'actorRole', 'createdAt'].sort());
+        await expect(db.accountPhoneAccessLog.update({ where: { id: log.id }, data: { createdAt: new Date() } })).rejects.toThrow();
+        await expect(db.accountPhoneAccessLog.delete({ where: { id: log.id } })).rejects.toThrow();
+      }
+
+      // Active target: Leader 2 and Officer permitted
+      for (const context of [leader2Context, officerContext]) {
+        const response = await context.post(activePath);
+        expect(response.status()).toBe(200);
+        expect(response.headers()['cache-control']).toContain('no-store');
+        const body = await response.json() as ApiResponseEnvelope<{ phoneNumber: string }>;
+        expect(Object.keys(body.data)).toEqual(['phoneNumber']);
+        expect(/^\+?\d{10,12}$/.test(body.data.phoneNumber)).toBe(true);
+        const me = await context.get('/api/auth/me');
+        const meBody = await me.json() as ApiResponseEnvelope<CurrentUserResponseDto>;
+        const log = await db.accountPhoneAccessLog.findFirstOrThrow({
+          where: { actorAccountId: meBody.data.user.id, targetAccountId: resident2User.id },
+          orderBy: { createdAt: 'desc' },
+        });
+        expect(log.actorRole).toBe(meBody.data.user.role);
+        expect(log.neighborhoodId).toBe(neighborhoodKp02.id);
+        expect(JSON.stringify(log).includes(body.data.phoneNumber)).toBe(false);
+      }
+
+      // Locked target: Lock resident 2, verify permitted with audits & cross-leader denial, then unlock
+      const lockRes = await leader2Context.patch(
+        `/api/users/${resident2User.id}/lock`,
+        {
+          data: {
+            reason: 'Tạm khóa để kiểm tra phân quyền xem số điện thoại',
+          },
+        },
+      );
+      expect(lockRes.status()).toBe(200);
+
+      await assertErrorResponse(await leader1Context.post(activePath), 403);
+
+      for (const context of [leader2Context, officerContext]) {
+        const response = await context.post(activePath);
+        expect(response.status()).toBe(200);
+        expect(response.headers()['cache-control']).toContain('no-store');
+        const body = await response.json() as ApiResponseEnvelope<{ phoneNumber: string }>;
+        expect(Object.keys(body.data)).toEqual(['phoneNumber']);
+        expect(/^\+?\d{10,12}$/.test(body.data.phoneNumber)).toBe(true);
+        const me = await context.get('/api/auth/me');
+        const meBody = await me.json() as ApiResponseEnvelope<CurrentUserResponseDto>;
+        const log = await db.accountPhoneAccessLog.findFirstOrThrow({
+          where: { actorAccountId: meBody.data.user.id, targetAccountId: resident2User.id },
+          orderBy: { createdAt: 'desc' },
+        });
+        expect(log.actorRole).toBe(meBody.data.user.role);
+        expect(log.neighborhoodId).toBe(neighborhoodKp02.id);
+        expect(JSON.stringify(log).includes(body.data.phoneNumber)).toBe(false);
+      }
+
+      const unlockRes = await leader2Context.patch(
+        `/api/users/${resident2User.id}/unlock`,
+      );
+      expect(unlockRes.status()).toBe(200);
+
+      expect(await db.accountPhoneAccessLog.count()).toBe(beforeCount + 6);
+
+      const listResponse = await leader2Context.get('/api/users/pending');
+      const list = await listResponse.json() as ApiResponseEnvelope<UserDto[]>;
+      const pending = list.data.find((item) => item.id === pendingResidentUser.id);
+      expect(pending?.maskedPhone).toContain('***');
+      expect(pending).not.toHaveProperty('phoneNumber');
+      expect(pending).not.toHaveProperty('phoneEncrypted');
+
+      const managedResponse = await leader2Context.get('/api/users/residents');
+      const managed = await managedResponse.json() as ApiResponseEnvelope<UserDto[]>;
+      const activeResItem = managed.data.find((item) => item.id === resident2User.id);
+      expect(activeResItem?.maskedPhone).toContain('***');
+      expect(activeResItem).not.toHaveProperty('phoneNumber');
+      expect(activeResItem).not.toHaveProperty('phoneEncrypted');
+    } finally {
+      await db.$disconnect();
+    }
+  });
+
   test('Matrix 10: Leader locks own active resident; that residents existing session immediately receives 401 UNAUTHORIZED on protected access', async () => {
     // Leader 1 locks active Resident 1
     const lockRes = await leader1Context.patch(
@@ -829,4 +949,3 @@ test.describe.serial('Real-Stack Security Authorization & IDOR Acceptance Gate',
     await assertErrorResponse(petitionsRes, 401, ErrorCode.UNAUTHORIZED);
   });
 });
-

@@ -283,6 +283,18 @@ describe('UsersService', () => {
           return mockNeighborhoods.find((n) => n.id === where.id) || null;
         },
       },
+      accountPhoneAccessLog: {
+        create: async ({ data }: { data: Prisma.AccountPhoneAccessLogUncheckedCreateInput }) => {
+          return {
+            id: 'log-' + Date.now(),
+            actorAccountId: data.actorAccountId,
+            targetAccountId: data.targetAccountId,
+            neighborhoodId: data.neighborhoodId ?? null,
+            actorRole: data.actorRole,
+            createdAt: new Date(),
+          };
+        },
+      },
     } as unknown as PrismaService;
 
     usersService = new UsersService(

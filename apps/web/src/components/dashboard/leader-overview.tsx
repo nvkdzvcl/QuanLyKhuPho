@@ -8,6 +8,7 @@ import { usePetitions } from '../../hooks/use-petitions';
 import { useResidentProfiles } from '../../hooks/use-resident-profiles';
 import { getErrorMessage } from '../../lib/api-client';
 import { AppIcon } from '../app-icon';
+import { ResidentAccountDetails } from './pending-resident-verification';
 
 export interface LeaderOverviewProps {
   user: UserDto;
@@ -128,7 +129,7 @@ export function LeaderOverview({ user, pendingResidents, isLoadingPending, isErr
                     <td className="px-4 py-4 text-slate-700">Đăng ký cư trú</td>
                     <td className="px-4 py-4 text-slate-700"><div>{formatDate(resident.createdAt)}</div><div className="text-xs text-slate-400">{formatTime(resident.createdAt)}</div></td>
                     <td className="max-w-60 px-4 py-4 text-slate-600">{resident.address || 'Chưa cập nhật địa chỉ'}</td>
-                    <td className="px-6 py-4"><div className="flex justify-end gap-2"><Button variant="primary" size="sm" onClick={() => onApproveResident(resident)} isLoading={isApproving} className="bg-emerald-600 text-xs hover:bg-emerald-700 flex items-center gap-1"><AppIcon name="check" className="h-3.5 w-3.5" /><span>Duyệt</span></Button><Button variant="outline" size="sm" onClick={() => onOpenRejectModal(resident)} className="border-red-300 text-xs text-red-600 hover:bg-red-50 flex items-center gap-1"><AppIcon name="x" className="h-3.5 w-3.5" /><span>Từ chối</span></Button></div></td>
+                    <td className="px-6 py-4"><div className="flex items-center justify-end gap-2"><ResidentAccountDetails resident={resident} /><Button variant="primary" size="sm" onClick={() => onApproveResident(resident)} isLoading={isApproving} className="bg-emerald-600 text-xs hover:bg-emerald-700 flex items-center gap-1"><AppIcon name="check" className="h-3.5 w-3.5" /><span>Duyệt</span></Button><Button variant="outline" size="sm" onClick={() => onOpenRejectModal(resident)} className="border-red-300 text-xs text-red-600 hover:bg-red-50 flex items-center gap-1"><AppIcon name="x" className="h-3.5 w-3.5" /><span>Từ chối</span></Button></div></td>
                   </tr>
                 ))}
               </tbody>

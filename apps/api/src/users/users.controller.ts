@@ -2,15 +2,21 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { UserDto, UserRole } from '@quanlykhupho/shared-types';
+import {
+  ResidentPhoneDto,
+  UserDto,
+  UserRole,
+} from '@quanlykhupho/shared-types';
 import { CurrentUser } from '../security/decorators/current-user.decorator';
 import { Roles } from '../security/decorators/roles.decorator';
 import { AuthGuard } from '../security/guards/auth.guard';
@@ -97,5 +103,20 @@ export class UsersController {
     @CurrentUser() currentUser: UserDto,
   ): Promise<UserDto> {
     return this.usersService.createLeader(dto, currentUser);
+  }
+
+  @Post(':id/reveal-phone')
+  @Roles(UserRole.LEADER, UserRole.OFFICER)
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store, private')
+  @Header('Pragma', 'no-cache')
+  async revealResidentPhone(
+    @Param('id', ParseUUIDPipe) residentId: string,
+    @CurrentUser() currentUser: UserDto,
+  ): Promise<ResidentPhoneDto> {
+    return this.usersService.revealResidentPhone(
+      residentId,
+      currentUser,
+    );
   }
 }

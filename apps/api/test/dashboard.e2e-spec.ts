@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { randomUUID } from 'crypto';
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
@@ -97,6 +97,10 @@ describe('Officer Dashboard API (e2e)', () => {
   let officerCookie: string;
 
   beforeAll(async () => {
+    // Keep current-month metrics and historical report fixtures aligned.
+    // Fake only Date so HTTP, application startup and cleanup timers stay real.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-08-25T10:00:00Z'));
     const mockPrisma = {
       $connect: async () => {},
       $disconnect: async () => {},
@@ -569,7 +573,8 @@ describe('Officer Dashboard API (e2e)', () => {
     dbAccounts.push(officerAcc);
 
     // 2. Seed Announcements
-    const now = new Date();
+    // This fixture belongs to the August report, regardless of when CI runs.
+    const announcementDate = new Date('2026-08-20T10:00:00Z');
     const ann1: DbMockAnnouncement = {
       id: randomUUID(),
       title: 'Thông báo họp tổ dân phố tháng 8',
@@ -578,8 +583,8 @@ describe('Officer Dashboard API (e2e)', () => {
       status: DbAnnouncementStatus.published,
       neighborhoodId: n1Id,
       authorId: leaderAcc.id,
-      createdAt: now,
-      updatedAt: now,
+      createdAt: announcementDate,
+      updatedAt: announcementDate,
       neighborhood: dbNeighborhoods[0]!,
       author: leaderAcc,
     };
@@ -608,8 +613,8 @@ describe('Officer Dashboard API (e2e)', () => {
       status: DbAnnouncementStatus.removed,
       neighborhoodId: n1Id,
       authorId: leaderAcc.id,
-      createdAt: now,
-      updatedAt: now,
+      createdAt: announcementDate,
+      updatedAt: announcementDate,
       neighborhood: dbNeighborhoods[0]!,
       author: leaderAcc,
     };
@@ -691,7 +696,11 @@ describe('Officer Dashboard API (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    try {
+      await app?.close();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   describe('Authorization and Access Control', () => {

@@ -41,6 +41,7 @@ import {
 import { WardOverviewStats } from './ward-overview-stats';
 import { PeriodicReportCard } from './periodic-report-card';
 import { AppIcon } from '../app-icon';
+import { ResidentAccountDetails } from './pending-resident-verification';
 
 interface OfficerViewProps {
   user: UserDto;
@@ -460,9 +461,12 @@ export function OfficerView({ user }: OfficerViewProps) {
                           {res.address || 'Chưa cập nhật'}
                         </p>
                       </div>
-                      <div className="text-xs text-slate-400 shrink-0">
-                        Đăng ký lúc:{' '}
-                        {new Date(res.createdAt).toLocaleString('vi-VN')}
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3 shrink-0 border-t border-slate-200 pt-3 sm:border-t-0 sm:pt-0">
+                        <div className="text-xs text-slate-400">
+                          Đăng ký lúc:{' '}
+                          {new Date(res.createdAt).toLocaleString('vi-VN')}
+                        </div>
+                        <ResidentAccountDetails resident={res} />
                       </div>
                     </div>
                   ))}

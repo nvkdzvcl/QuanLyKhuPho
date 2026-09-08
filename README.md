@@ -182,6 +182,7 @@ pnpm dev
 | Method | Endpoint | Quyền hạn | Mô tả |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/api/users/pending` | Leader / Officer | Danh sách cư dân chờ duyệt (Leader chỉ thấy khu phố của mình) |
+| `POST` | `/api/users/:id/reveal-phone` | Leader / Officer | Xem số điện thoại tài khoản cư dân (chờ duyệt, đang hoạt động hoặc đã khóa); Leader chỉ được xem trong khu phố mình; ghi nhật ký truy cập trước khi trả kết quả, phản hồi không lưu cache |
 | `PATCH` | `/api/users/:id/approve` | Leader / Officer | Phê duyệt hồ sơ cư dân thành `active` |
 | `PATCH` | `/api/users/:id/reject` | Leader / Officer | Từ chối hồ sơ cư dân (yêu cầu lý do `reason`) |
 | `PATCH` | `/api/users/:id/lock` | Leader / Officer | Khóa tài khoản cư dân (yêu cầu lý do `reason`, thu hồi phiên) |

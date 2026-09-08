@@ -12,6 +12,7 @@ import {
   ErrorCode,
   LockResidentDto,
   ManagedResidentQueryDto,
+  ResidentPhoneDto,
   RejectResidentDto,
   UserDto,
   UserRole,
@@ -726,5 +727,112 @@ export class UsersService {
     }
 
     throw lastError;
+  }
+
+  /**
+   * Reveals a resident's decrypted phone number with persistent access audit logging.
+   * Supports pending, active, and locked resident accounts.
+   * Leaders can only reveal phone numbers for residents in their assigned neighborhood.
+   * Officers can reveal phone numbers for any resident in the ward.
+   * Transactionally records an AccountPhoneAccessLog before returning decrypted phone.
+   */
+  async revealResidentPhone(
+    targetAccountId: string,
+    currentUser: UserDto,
+  ): Promise<ResidentPhoneDto> {
+    if (
+      currentUser.role !== UserRole.LEADER &&
+      currentUser.role !== UserRole.OFFICER
+    ) {
+      throw new AppException(
+        'Chức năng này chỉ dành cho Trưởng khu phố và Cán bộ phường.',
+        HttpStatus.FORBIDDEN,
+        ErrorCode.FORBIDDEN,
+      );
+    }
+
+    if (currentUser.status !== AccountStatus.ACTIVE) {
+      throw new AppException(
+        'Tài khoản của bạn không ở trạng thái hoạt động.',
+        HttpStatus.FORBIDDEN,
+        ErrorCode.FORBIDDEN,
+      );
+    }
+
+    if (currentUser.role === UserRole.LEADER && !currentUser.neighborhoodId) {
+      throw new AppException(
+        'Trưởng khu phố chưa được gán vào khu phố nào.',
+        HttpStatus.FORBIDDEN,
+        ErrorCode.FORBIDDEN,
+      );
+    }
+
+    return await this.prisma.$transaction(async (tx) => {
+      const target = await tx.account.findUnique({
+        where: { id: targetAccountId },
+      });
+
+      if (!target) {
+        throw new AppException(
+          'Không tìm thấy thông tin tài khoản cư dân.',
+          HttpStatus.NOT_FOUND,
+          ErrorCode.ACCOUNT_NOT_FOUND,
+        );
+      }
+
+      if (target.role !== Role.resident) {
+        throw new AppException(
+          'Chức năng này chỉ áp dụng cho tài khoản cư dân.',
+          HttpStatus.FORBIDDEN,
+          ErrorCode.FORBIDDEN,
+        );
+      }
+
+      if (
+        target.status !== DbAccountStatus.pending &&
+        target.status !== DbAccountStatus.active &&
+        target.status !== DbAccountStatus.locked
+      ) {
+        throw new AppException(
+          'Chỉ có thể xem số điện thoại của tài khoản đang chờ duyệt, đang hoạt động hoặc đã bị khóa.',
+          HttpStatus.BAD_REQUEST,
+          ErrorCode.INVALID_STATUS_TRANSITION,
+        );
+      }
+
+      if (currentUser.role === UserRole.LEADER) {
+        if (target.neighborhoodId !== currentUser.neighborhoodId) {
+          throw new AppException(
+            'Bạn không có quyền thao tác trên cư dân thuộc khu phố khác.',
+            HttpStatus.FORBIDDEN,
+            ErrorCode.FORBIDDEN,
+          );
+        }
+      }
+
+      let decryptedPhone: string;
+      try {
+        decryptedPhone = this.cryptoService.decrypt(target.phoneEncrypted);
+      } catch {
+        this.logger.error('Failed to decrypt resident phone for verification');
+        throw new AppException(
+          'Không thể giải mã số điện thoại cư dân.',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          ErrorCode.INTERNAL_ERROR,
+        );
+      }
+
+      await tx.accountPhoneAccessLog.create({
+        data: {
+          actorAccountId: currentUser.id,
+          targetAccountId: target.id,
+          neighborhoodId: target.neighborhoodId,
+          actorRole:
+            currentUser.role === UserRole.LEADER ? Role.leader : Role.officer,
+        },
+      });
+
+      return { phoneNumber: decryptedPhone };
+    });
   }
 }
