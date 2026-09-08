@@ -803,6 +803,11 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
       await expect(attendanceModal).not.toBeVisible();
 
       // d. Verify activity row shows 1 present out of 1 participant and edit metadata
+      // The list defaults to the current month; select the historical fixture's
+      // month explicitly so this journey also works after August 2026.
+      const monthPicker = page.getByLabel('Tháng:');
+      await monthPicker.fill(NEIGHBORHOOD_ACTIVITY.month);
+      await expect(monthPicker).toHaveValue(NEIGHBORHOOD_ACTIVITY.month);
       const activityRow = page
         .getByRole('row')
         .filter({ hasText: NEIGHBORHOOD_ACTIVITY.name });
@@ -853,7 +858,6 @@ test.describe('Full-Stack Multi-Role Journey (FS-E2E-ROLES)', () => {
       await expect(editMetadataModal).not.toBeVisible();
 
       // e. Month picker navigation away and back retrieves updated activity and persisted data
-      const monthPicker = page.getByLabel('Tháng:');
       await monthPicker.fill(NEIGHBORHOOD_ACTIVITY.otherMonth);
       await expect(
         page.getByRole('row').filter({ hasText: NEIGHBORHOOD_ACTIVITY.updatedName }),
